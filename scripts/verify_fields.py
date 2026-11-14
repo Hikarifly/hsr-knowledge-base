@@ -141,6 +141,7 @@ issues = defaultdict(list)     # (分类, 问题类型) -> [(file, detail)]
 known = defaultdict(list)      # 已知待补充 -> [(file, detail)]
 ids = defaultdict(list)        # (分类, 实体ID) -> [file]  ← 按分类聚合，避免跨库 ID 伪重复
 total_detail = 0
+detail_by_cat = Counter()      # 分类 -> 详情文件数（「详情」唯一口径，供 gen_metrics 复用）
 
 for f in files:
     txt = open(f, encoding='utf-8').read()
@@ -151,14 +152,18 @@ for f in files:
     _parts = f.replace('\\', '/').rstrip('/').split('/')
     if len(_parts) >= 2 and _parts[-1][:-3] == _parts[-2]:
         continue
-    total_detail += 1
     cat = classify(f)
     rule = REQUIRE.get(cat)
+    # 类别主索引文件（如 音乐/音乐.md、enemies/敌人.md）不是详情。
+    # D-067：本排除**必须在计数之前**——旧实现先 `total_detail += 1` 再排除，
+    # 使 `enemies/敌人.md`（`> 实体ID：不适用（类别主索引）`）被当成一条敌人详情，
+    # 把敌人详情数从 5 报成 6；而 v1.16 规范「索引写『不适用』」正是为了防这个多算。
+    if rule and rule.get('index') and f.endswith('/' + rule['index']):
+        continue
+    total_detail += 1
+    detail_by_cat[cat] += 1
     if not rule:
         continue  # 根目录文档 / 未定义分类，不参与字段校验
-    # 类别主索引文件（如 音乐/音乐.md、enemies/敌人.md）不参与详情字段校验
-    if rule.get('index') and f.endswith('/' + rule['index']):
-        continue
     # 1. 元信息
     for k in rule['meta']:
         if k not in meta:
@@ -198,7 +203,10 @@ for f in files:
 print('扫描 md 文件数:', len(files))
 print('详情文件数:', total_detail)
 print()
-
+print('=== 详情文件分布（按类别） ===')
+for _cat, _n in sorted(detail_by_cat.items(), key=lambda x: (-x[1], x[0])):
+    print(f'[{_cat}] {_n}')
+print()
 # 重复 ID（按分类）
 dups = {k: fl for k, fl in ids.items() if len(fl) > 1}
 print('=== 重复实体ID（同分类内） ===')

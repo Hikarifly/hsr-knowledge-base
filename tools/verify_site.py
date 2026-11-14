@@ -7,13 +7,17 @@ verify_site.py — 静态站回归自检（工单 W-4.6-67）
 零依赖：仅 Python 标准库。只读：不生成、不修改任何文件。
 退出码：0 = 全部通过；1 = 存在失败项（失败项逐条打印样例）。
 
-覆盖 6 项（对应工单 §3.A）：
+覆盖 16 项（对应工单 §3.A；[16] 为 issue #16 新增）：
   [1] 每页恰好 1 个 <h1>，且其文本 == <title> 去掉尾部 " — HSR Wiki"
   [2] 面包屑形如 首页 / <a> / <b> / <名称>（</a> 之后紧跟 " / "）
   [3] data/titles.js：无 BOM、无 "# " / "> " 开头的标题、category 无空值
   [4] 死链：link_report.json 的 dead == 0，且与生成页里 class="dead" 的独立复算一致
-  [5] 禁用项扫描：border-radius 非 0 / box-shadow / linear-gradient / <img> / 外链脚本 / 外链样式
+  [5] 禁用项扫描（视觉六禁，见 格式规范与要求.md §十九）：
+      border-radius 非 0 / box-shadow / linear-gradient（含 repeating-）/
+      非图标 <img> / 外链脚本 / 外链样式
   [6] 搜索静态检查：esc(h.t.title) / #search[role=combobox] / #results[role=listbox]
+  [16] 规模数字：README.md ×5 语言 + docs/仓库结构.md 中写死的规模数字
+       必须等于 docs/metrics.md（scripts/gen_metrics.py 生成的唯一真值表）
 
 说明（第 5 项 <img>）：生成页里的实体图标 <img class="entity-icon" src="…/assets/icons/…">
 由 wiki/copy_icons.py 在 CI 构建期产出，按工单 §1.2 不属本次范围；本项只统计**非图标** <img>
@@ -693,6 +697,241 @@ def check_character_panel(files):
              len(j_bad_imgs), fb_n, len(k_bad)))
 
 
+def _cell_int(line):
+    """取 Markdown 表格行的**最后一个**非空单元格里的第一个整数（无整数 → None）。
+
+    例：`| `enemies/` | 敌人库（…） | 5 |`   → 5
+        `| `quest/` | 剧情文本库（…） | 0 [1] |` → 0（脚注 `[1]` 不影响取值）
+    """
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if not cells:
+        return None
+    m = re.search(r"(\d[\d,]*)", cells[-1])
+    if not m:
+        return None
+    return int(m.group(1).replace(",", ""))
+
+
+def _nums(line, pattern):
+    """按给定正则取出整行（行内顺序）的全部数字。"""
+    return [int(x.replace(",", "")) for x in re.findall(pattern, line)]
+
+
+# ---------------- [16] 文档规模数字与 docs/metrics.md 一致 ----------------
+#
+# 真值来源：`docs/metrics.md` 末尾「机器可读真值」表（由 `scripts/gen_metrics.py` 生成）：
+#     | `<key>` | <value> |
+# 本节只做「文档写的数 == 真值表」的逐项比对，不自行推算任何数字。
+#
+# 被测文档与**锚点正则**（改文档措辞必须同步改锚点，否则会报「锚点未命中」）：
+#
+#   A. 分类详情行（README.md 内容结构表 / 4× `docs/README_*.md` Content Structure 表）
+#      锚点：^\|\s*`?(character|lightcone|items|relic|simulated|events|enemies|stages|音乐)/?`?\s*\|
+#      取值：**最后一个单元格**里的第一个整数，与 `detail_<类别>` 比对。
+#
+#   B. 文档型目录行（quest / worldview / 货币战争 / rules）
+#      锚点：同上，取值必须为 0（脚注 `[1]` 允许），且真值表 `doctype_<目录>` 必须 > 0
+#      （防止「0」被误读成「无内容」）。
+#
+#   C. 镜像行（README.md 与 4× `docs/README_*.md` 的 `en_us/` 行；`docs/仓库结构.md` 同名行）
+#      锚点：行首 ^\|\s*`en_us/`
+#      取值：行内全部 \d{1,2},\d{3} 形态数字，**顺序固定**为
+#              [en 入库, zh_tw 入库, ja 入库, ko 入库, en 工作区, zh_tw 工作区, ja 工作区, ko 工作区]
+#            若还有第 9 个，必须是「各约 N」= round(mean(四个入库数)/10)*10。
+#
+#   D. `zh_cn/` 合计行（仅 README.md）
+#      锚点：^\|\s*`zh_cn/`\s*\|   取值：最后一个单元格（允许前导 ≈）
+#
+#   E. wiki 页数（仅 README.md）
+#      锚点：(\d[\d,]*)\s*页（=`      与 `pages` 比对
+#
+#   F. `zh_cn/` 规模（仅 docs/仓库结构.md，§一 顶层结构表）
+#      锚点：([\d,]+)\s*`\.md`（入库\s*([\d,]+)）      → 工作区数 / 入库数
+#
+#   G. 文档型目录实际文件数（仅 README.md 脚注）
+#      锚点：依次为\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)  → quest/worldview/货币战争/rules
+METRICS = ROOT / "docs" / "metrics.md"
+
+# 分类目录名 → 真值表 key
+METRIC_DIR_KEY = {
+    "character": "detail_character",
+    "lightcone": "detail_lightcone",
+    "items": "detail_items",
+    "relic": "detail_relic",
+    "simulated": "detail_simulated",
+    "events": "detail_events",
+    "enemies": "detail_enemies",
+    "stages": "detail_stages",
+    "音乐": "detail_music",
+}
+METRIC_DOCTYPE_DIRS = ("quest", "worldview", "货币战争", "rules")
+METRIC_MIRRORS = ("en_us", "zh_tw", "ja_jp", "ko_kr")
+RE_CAT_ROW = r"^\|\s*`?(%s)/?`?\s*\|" % "|".join(
+    re.escape(k) for k in list(METRIC_DIR_KEY) + list(METRIC_DOCTYPE_DIRS))
+RE_MIRROR_ROW = r"^\|\s*`en_us/`"
+RE_ZHCN_ROW = r"^\|\s*`zh_cn/`\s*\|"
+RE_PAGES = r"(\d[\d,]*)\s*页（=`"
+RE_ZHCN_STRUCT = r"([\d,]+)\s*`\.md`（入库\s*([\d,]+)）"
+RE_DOCTYPE_NOTE = r"依次为\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)"
+RE_MIRROR_NUM = r"(\d{1,2},\d{3})"
+
+METRIC_DOCS = [
+    ROOT / "README.md",
+    ROOT / "docs" / "README_en.md",
+    ROOT / "docs" / "README_ja.md",
+    ROOT / "docs" / "README_ko.md",
+    ROOT / "docs" / "README_zh-Hant.md",
+    ROOT / "docs" / "仓库结构.md",
+]
+
+
+def _load_metric_truth():
+    """解析 docs/metrics.md 的机器可读真值表 → dict[key] = int|str。
+
+    key 允许 ASCII 标识字符 + 汉字 + `.`（如 `doctype_货币战争`、`version_4.5`）。
+    """
+    truth = {}
+    for m in re.finditer(r"^\|\s*`([A-Za-z0-9_.\u4e00-\u9fff]+)`\s*\|\s*([^|]*?)\s*\|\s*$",
+                         read(METRICS), re.M):
+        k, v = m.group(1), m.group(2).strip()
+        if re.fullmatch(r"-?[\d,]+", v):
+            truth[k] = int(v.replace(",", ""))
+        else:
+            truth[k] = v
+    return truth
+
+
+def check_metrics():
+    """[16] README×5 + docs/仓库结构.md 里的规模数字必须等于 docs/metrics.md 的真值。"""
+    if not METRICS.exists():
+        print("[16] 规模真值: 缺少 %s" % METRICS.relative_to(ROOT))
+        fail(16, "缺少 docs/metrics.md（先运行 python scripts/gen_metrics.py）")
+        return
+    truth = _load_metric_truth()
+
+    # 0. 真值表自身的完整性（缺 key / 值为「未核实」都算失败）
+    required = ["pages", "md_commit_zh_cn", "md_worktree_zh_cn", "mirror_commit_avg_round10"]
+    required += list(METRIC_DIR_KEY.values())
+    required += ["md_commit_" + l for l in METRIC_MIRRORS]
+    required += ["md_worktree_" + l for l in METRIC_MIRRORS]
+    required += ["doctype_" + d for d in METRIC_DOCTYPE_DIRS]
+    missing = [k for k in required if not isinstance(truth.get(k), int)]
+    if missing:
+        print("[16] 规模真值: docs/metrics.md 缺失或未实测的 key：%s" % ", ".join(missing))
+        fail(16, "docs/metrics.md 真值表缺 key 或写「未核实」：%s（重跑 gen_metrics.py）"
+             % ", ".join(missing))
+        return
+
+    bad = []          # [(文件, 说明)]
+    hits = {}         # 锚点名 -> 命中次数（用于发现「锚点静默失效」）
+
+    def bump(k):
+        hits[k] = hits.get(k, 0) + 1
+
+    for path in METRIC_DOCS:
+        if not path.exists():
+            bad.append((path, "文件缺失"))
+            continue
+        name = rel(path)
+        for ln in read(path).splitlines():
+            # ---- A / B：分类详情行 & 文档型目录行 ----
+            mm = re.match(RE_CAT_ROW, ln)
+            if mm:
+                d = mm.group(1)
+                got = _cell_int(ln)
+                if d in METRIC_DOCTYPE_DIRS:
+                    bump("B:" + d)
+                    if got != 0:
+                        bad.append((path, "`%s/` 行应为 0（详情口径计 0），实为 %r" % (d, got)))
+                    if not truth.get("doctype_" + d):
+                        bad.append((path, "真值表 doctype_%s 缺失/为 0，无法核对脚注" % d))
+                else:
+                    bump("A:" + d)
+                    want = truth[METRIC_DIR_KEY[d]]
+                    if got != want:
+                        bad.append((path, "`%s/` 详情数 文档=%r 真值=%d" % (d, got, want)))
+                continue
+            # ---- C：镜像行 ----
+            if re.match(RE_MIRROR_ROW, ln):
+                bump("C")
+                nums = _nums(ln, RE_MIRROR_NUM)
+                want = ([truth["md_commit_" + l] for l in METRIC_MIRRORS]
+                        + [truth["md_worktree_" + l] for l in METRIC_MIRRORS])
+                if nums[:8] != want:
+                    bad.append((path, "镜像规模 文档=%r 真值(入库+工作区)=%r" % (nums[:8], want)))
+                if len(nums) > 8 and nums[8] != truth["mirror_commit_avg_round10"]:
+                    bad.append((path, "镜像「各约」 文档=%d 真值=%d"
+                                % (nums[8], truth["mirror_commit_avg_round10"])))
+                if len(nums) < 8:
+                    bad.append((path, "镜像行只解析到 %d 个规模数字（应 ≥8）" % len(nums)))
+                continue
+            # ---- D：zh_cn 合计行（README.md 内容结构表 / docs/仓库结构.md §一 同名行） ----
+            if re.match(RE_ZHCN_ROW, ln):
+                bump("D")
+                got = _cell_int(ln)
+                if got != truth["md_worktree_zh_cn"]:
+                    bad.append((path, "`zh_cn/` 合计 文档=%r 真值=%d"
+                                % (got, truth["md_worktree_zh_cn"])))
+                # F 与 D 命中同一行（仓库结构 §一 的「6,685 `.md`（入库 6,517）」）：先查再 continue
+                ms = re.search(RE_ZHCN_STRUCT, ln)
+                if ms:
+                    bump("F")
+                    w = int(ms.group(1).replace(",", ""))
+                    c = int(ms.group(2).replace(",", ""))
+                    if w != truth["md_worktree_zh_cn"]:
+                        bad.append((path, "`zh_cn/` 工作区数 文档=%d 真值=%d"
+                                    % (w, truth["md_worktree_zh_cn"])))
+                    if c != truth["md_commit_zh_cn"]:
+                        bad.append((path, "`zh_cn/` 入库数 文档=%d 真值=%d"
+                                    % (c, truth["md_commit_zh_cn"])))
+                continue
+            # ---- E：wiki 页数 ----
+            mp = re.search(RE_PAGES, ln)
+            if mp:
+                bump("E")
+                got = int(mp.group(1).replace(",", ""))
+                if got != truth["pages"]:
+                    bad.append((path, "wiki 页数 文档=%d 真值=%d" % (got, truth["pages"])))
+            # ---- F：仓库结构 §一 的 zh_cn 规模 ----
+            ms = re.search(RE_ZHCN_STRUCT, ln)
+            if ms:
+                bump("F")
+                w = int(ms.group(1).replace(",", ""))
+                c = int(ms.group(2).replace(",", ""))
+                if w != truth["md_worktree_zh_cn"]:
+                    bad.append((path, "`zh_cn/` 工作区数 文档=%d 真值=%d"
+                                % (w, truth["md_worktree_zh_cn"])))
+                if c != truth["md_commit_zh_cn"]:
+                    bad.append((path, "`zh_cn/` 入库数 文档=%d 真值=%d"
+                                % (c, truth["md_commit_zh_cn"])))
+            # ---- G：README.md 脚注的实际文件数 ----
+            mg = re.search(RE_DOCTYPE_NOTE, ln)
+            if mg:
+                bump("G")
+                got = [int(x) for x in mg.groups()]
+                want = [truth["doctype_" + d] for d in METRIC_DOCTYPE_DIRS]
+                if got != want:
+                    bad.append((path, "文档型目录实际文件数 文档=%r 真值=%r" % (got, want)))
+
+    # 必需锚点必须在该出现的地方各命中一次
+    for need in ["C", "D", "E", "F", "G"]:
+        if not hits.get(need):
+            bad.append((ROOT / "-", "锚点 %s 未命中任何行（文档措辞被改？请同步锚点正则）" % need))
+
+    n_a = sum(v for k, v in hits.items() if k.startswith("A:"))
+    n_b = sum(v for k, v in hits.items() if k.startswith("B:"))
+    print("[16] 规模数字: 真值表 key=%d 个 | 分类详情行=%d 文档型行=%d 镜像行=%d "
+          "zh_cn合计=%d wiki页数=%d 仓库结构=%d 脚注=%d | 不一致=%d"
+          % (len(truth), n_a, n_b, hits.get("C", 0), hits.get("D", 0),
+             hits.get("E", 0), hits.get("F", 0), hits.get("G", 0), len(bad)))
+    for p, why in bad[:12]:
+        print("      ! %s — %s" % (rel(p), why))
+    if len(bad) > 12:
+        print("      ! …另有 %d 项，略" % (len(bad) - 12))
+    if bad:
+        fail(16, "%d 处规模数字与 docs/metrics.md 不一致" % len(bad))
+
+
 def main():
     print("=== 静态站回归自检（W-4.6-67） ===")
     print("root: %s" % ROOT)
@@ -718,6 +957,7 @@ def main():
     check_timeline(files)
     check_dashboard()
     check_character_panel(files)
+    check_metrics()
     if fails:
         print("RESULT: FAIL  失败项 %d：" % len(fails))
         for f in fails:
