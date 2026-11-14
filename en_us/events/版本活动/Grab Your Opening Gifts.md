@@ -1,6 +1,7 @@
 # Grab Your Opening Gifts
 
 > 数据来源：[Version 4.7 "Now, Lay Laughter to All Stars" Update Details](https://hsr.hoyoverse.com/en-us/news/167246) ("6. New Events"); [Miyoushe "开场好礼先抱走" event notice (79216272)](https://www.miyoushe.com/sr/article/79216272) (section details and exchange notes)
+> 本地化来源：非官方（工具：LLM（模型未记录）；来源：https://www.miyoushe.com/sr/article/79216272；时间：2026-11-15）
 > 数据版本：4.7
 > 实体ID：无（官方未公开）
 > 创建时间：2026-11-14 18:02
