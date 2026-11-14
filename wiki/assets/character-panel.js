@@ -298,16 +298,28 @@
 
   /* 播报节点挂在 body 上而不是 overlay 内：overlay 是 aria-hidden，
      放在里面读屏软件根本收不到（对设计样例的这一处做了修正）。 */
+  /* #21-1 / #21-2：播报节点**单例化**，且遵循「先挂载空节点、下一帧再填文本」。
+     旧实现每次 announce 都新建 <p aria-live>，连点 N 次会同时留 N 个空节点（节点泄漏）；
+     且首条文本与节点同时插入时，部分读屏器（NVDA / VoiceOver）首次不播。
+     现在：节点只建一次并常驻；同一文案重复播报先清空再填，保证每次都能被朗读。 */
+  var liveNode = null;
+
+  function live() {
+    if (liveNode && liveNode.parentNode) return liveNode;
+    liveNode = el("p", "sr-only");
+    liveNode.setAttribute("role", "status");
+    liveNode.setAttribute("aria-live", "polite");
+    liveNode.setAttribute("aria-atomic", "true");
+    document.body.appendChild(liveNode);   /* 空节点先入 DOM（首播前提） */
+    return liveNode;
+  }
+
   function announce(text) {
     try {
-      var st = el("p", "sr-only");
-      st.setAttribute("role", "status");
-      st.setAttribute("aria-live", "polite");
-      st.textContent = text;
-      document.body.appendChild(st);
-      timers.push(window.setTimeout(function () {
-        if (st.parentNode) st.parentNode.removeChild(st);
-      }, 1200));
+      var st = live();
+      st.textContent = "";                 /* 清空 → 同文案也能再播一次 */
+      var next = window.requestAnimationFrame || function (f) { return window.setTimeout(f, 16); };
+      next(function () { st.textContent = text; });   /* 下一帧填文本 */
     } catch (e) { /* 播报不是关键路径 */ }
   }
 
@@ -398,6 +410,9 @@
     nav = false;
     pendingHref = "";
   }
+
+  /* 首屏即建好播报节点：保证「点击之前节点已存在」，首条播报不会因同时插入而丢失 */
+  try { live(); } catch (e) { /* 忽略 */ }
 
   panel.addEventListener("click", onCardClick, false);
   document.addEventListener("keydown", onKeyDown, true);

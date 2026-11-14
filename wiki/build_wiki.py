@@ -62,6 +62,16 @@ SIDENAV = [
 # 避免出现 items / stages 这类裸目录名）
 DIR_LABEL = {top: label for top, _href, label in SIDENAV}
 
+# #21-3：侧栏条目必须唯一 —— 这是「幂等构建」的硬前提。
+# 同一 href 或同一显示名重复出现时，两次构建的导航条目数会不一致（并发/重跑时表现为
+# 「偶发重复条目」）。此处**导入即断言**：宁可构建失败，也不静默产出脏侧栏。
+_HREFS = [h for _, h, _ in SIDENAV]
+_LABELS = [l for _, _, l in SIDENAV]
+_DUP_HREF = sorted({h for h in _HREFS if _HREFS.count(h) > 1})
+_DUP_LABEL = sorted({l for l in _LABELS if _LABELS.count(l) > 1})
+assert not _DUP_HREF, "SIDENAV href 重复：%s" % _DUP_HREF
+assert not _DUP_LABEL, "SIDENAV 显示名重复：%s" % _DUP_LABEL
+
 
 def sidenav_html(up, cur_top):
     """生成可折叠、零 JS 的侧边导航；cur_top = 当前页顶层目录，命中则高亮。"""
