@@ -7,6 +7,8 @@
 
 ---
 
+> 长线计划见 [ROADMAP.md](ROADMAP.md)；术语见 [../GLOSSARY.md](../GLOSSARY.md)；数字真值见 [metrics.md](metrics.md)。
+
 ## 一、五区导航
 
 | 区 | 看什么 | 入口 |
