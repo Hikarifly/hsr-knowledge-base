@@ -130,20 +130,31 @@
     } catch (e) { /* 隐私模式：静默忽略 */ }
   }
 
-  /* 总时长以 CSS 变量 --hero-total 为唯一真相源 */
+  /* 总时长以 CSS 变量 --hero-total 为唯一真相源。
+     #14-7：同时接受 "840ms" 与 "0.84s"（原实现只 parseFloat，写 s 单位会静默退回默认值）。 */
   function heroTotal() {
     try {
-      var v = window.getComputedStyle(document.documentElement)
-        .getPropertyValue("--hero-total");
-      var n = parseFloat(String(v));
-      if (n && isFinite(n) && n > 0) return n;
+      var raw = String(window.getComputedStyle(document.documentElement)
+        .getPropertyValue("--hero-total")).trim();
+      var m = /^([\d.]+)\s*(ms|s)?$/i.exec(raw);
+      if (m) {
+        var n = parseFloat(m[1]);
+        if (isFinite(n) && n > 0) {
+          return /^s$/i.test(m[2] || "") ? n * 1000 : n;
+        }
+      }
     } catch (e) { /* 忽略 */ }
     return DEFAULT_MS;
   }
 
   /* 首帧（背板 + 擦除）时长 = --hero-total 的 1/7（CSS 里 21 步中的 3 步，默认 120ms）。
-     与 CSS 同源：改 --hero-total 一个变量，data-state 的 enter→hero 切换点也跟着缩放，
-     不再在 JS 里留一处 120ms 硬编码（P1-2 的另一半）。 */
+     与 CSS 同源：改 --hero-total 一个变量，data-state 的 enter→hero 切换点也跟着缩放。
+     #14-6 耦合点（改一处必须同步的四处，均为 `步数/21`）：
+       · 本函数 → 1/7 = 3/21，决定 data-state 切到 hero 的时刻；
+       · style.css `.hero-frame` / `.hero-br-*` / `.hero-spine` 的 duration = `--hero-stagger * 3~6`；
+       · style.css `.hero-hint` delay = `--hero-stagger * 3`（#14-4 后与四角同段）；
+       · `settle` 段 delay = `--hero-stagger * 18`，故 21 步必须能整除剩余时长。
+     data-state 本身在 CSS 里 0 引用，只作可观测的调试属性，视觉完全由关键帧驱动。 */
   function heroEnterMs() {
     return heroTotal() / 7;
   }

@@ -127,8 +127,9 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(-
    D-1 修正：吸附位让开 sticky 顶栏的真实高度 --ui-topbar-h（不写死像素），
    否则 .topbar（z-index:20、不透明底）会把吸附后的表头压掉 51.8px、只剩一行边。 */
 table thead th{position:sticky;top:var(--ui-topbar-h);z-index:1;background:var(--ui-panel-2)}
-/* 锚点落点：滚动跳转后给顶部留出余量，避免被贴顶元素压住 */
-[id]{scroll-margin-top:64px}
+/* 锚点落点：滚动跳转后给顶部留出余量，避免被贴顶元素压住。
+   #14-2：与 sticky 表头共用同一变量（原写死 64px，与 --ui-topbar-h 的 51.8px 成双口径）。 */
+[id]{scroll-margin-top:calc(var(--ui-topbar-h) + var(--sp-2))}
 /* 强制配色模式（高对比）：细线边框在 forced-colors 下会被系统色覆盖，显式恢复 1px 可见框 */
 @media (forced-colors: active){
   .cat,.sidenav,table,th,td{border:1px solid}
@@ -367,7 +368,7 @@ body,.sidenav,.meta,blockquote,table th,.missing-note{
   --ui-line:#C9D1DC; --ui-line-2:#8A94A3;
   --ui-ink:#0E1319; --ui-ink-2:#3A4453; --ui-mute:#55606F;
   --ui-hi:#0A6E8C; --ui-hi-2:#A9DCEE;
-  --ui-warn:#8A5A00; --ui-danger:#B3121F;
+  --ui-danger:#B3121F;
 }
 @media (prefers-color-scheme: dark){
   :root{
@@ -376,7 +377,7 @@ body,.sidenav,.meta,blockquote,table th,.missing-note{
     --ui-line:#232B38; --ui-line-2:#48576B;
     --ui-ink:#E6ECF5; --ui-ink-2:#B4BFD0; --ui-mute:#7C8798;
     --ui-hi:#6FE3FF; --ui-hi-2:#1E4C60;
-    --ui-warn:#FFC24B; --ui-danger:#FF5D5D;
+    --ui-danger:#FF5D5D;
   }
 }
 /* 手动主题（优先级高于系统偏好；与 style.css:11-13 同构，theme.js 三态切换零改动） */
@@ -386,7 +387,7 @@ body,.sidenav,.meta,blockquote,table th,.missing-note{
   --ui-line:#C9D1DC; --ui-line-2:#8A94A3;
   --ui-ink:#0E1319; --ui-ink-2:#3A4453; --ui-mute:#55606F;
   --ui-hi:#0A6E8C; --ui-hi-2:#A9DCEE;
-  --ui-warn:#8A5A00; --ui-danger:#B3121F;
+  --ui-danger:#B3121F;
 }
 :root[data-theme="dark"]{
   --ui-bg:#06080C; --ui-panel:#0C1117; --ui-panel-2:#121926;
@@ -394,26 +395,29 @@ body,.sidenav,.meta,blockquote,table th,.missing-note{
   --ui-line:#232B38; --ui-line-2:#48576B;
   --ui-ink:#E6ECF5; --ui-ink-2:#B4BFD0; --ui-mute:#7C8798;
   --ui-hi:#6FE3FF; --ui-hi-2:#1E4C60;
-  --ui-warn:#FFC24B; --ui-danger:#FF5D5D;
+  --ui-danger:#FF5D5D;
 }
 
 /* ---------------- §1.2-§1.4 几何 / 字号 / 动效 / 纹理（与主题无关） ---------------- */
 :root{
   --ui-cut-sm:6px; --ui-cut:8px; --ui-cut-lg:20px;
   --ui-hair:1px; --ui-hair-2:2px; --ui-bracket:12px; --ui-frame:1px;
-  /* 顶栏的真实占位高度（D-1）：sticky 吸附态下 .topbar 盖住视口顶部多少像素。
-     值 = .topbar 上下 padding(2×--sp-2) + 下边框(--ui-hair)
-          + .theme-toggle 上下留白(6+6=12px) + 上下描边(2×--ui-hair) + 行高(1.6×--fs-1)
-          = 16+1+12+2+20.8 = 51.8px。
-     写成算式而非常数：上面任一 token（间距/发丝线/字号）变动，让位高度自动跟随，
-     不会出现「CSS 改了字号、表头让位还停在旧值」的静默失配。 */
+  /* 顶栏占位高度：sticky 吸附态下 .topbar 盖住视口顶部多少像素（#14-1）。
+     **本值只是兜底**（无 JS / 首帧渲染）：theme.js 在 DOMContentLoaded + resize 时
+     量测 .topbar.offsetHeight 并内联覆盖 :root 的同名变量，因此「CSS 改字号、让位
+     停在旧值」不会发生。
+     兜底算式 = 上下 padding(2×--sp-2) + 下边框(--ui-hair)
+              + .theme-toggle 上下留白(6+6=12px) + 上下描边(2×--ui-hair) + 行高(1.6×--fs-1)
+              = 16+1+12+2+20.8 = 51.8px。
+     注意式子里的 12px / 1.6 / ×3 是**镜像字面量**（对应 .theme-toggle 的 padding 与
+     line-height），token 变动时它只保证「大致」跟随，精确值由量测负责。 */
   --ui-topbar-h:calc(var(--sp-2) * 2 + 12px + var(--ui-hair) * 3 + var(--fs-1) * 1.6);
-  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
-  --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:24px; --sp-6:32px;
   --fs-micro:11px; --fs-0:12px; --fs-1:13px; --fs-2:14px;
-  --fs-3:16px; --fs-4:19px; --fs-5:26px; --fs-6:40px;
+  --fs-3:16px; --fs-4:19px; --fs-5:26px;
   --ui-track:.08em;
-  --t-0:0ms; --t-1:120ms; --t-2:200ms; --t-3:280ms; --t-4:480ms; --t-5:700ms;
+  --t-2:200ms; --t-3:280ms; --t-4:480ms;
   --ease:cubic-bezier(.32,.72,0,1); --ease-out:cubic-bezier(.16,1,.3,1);
   --ease-in:cubic-bezier(.4,0,1,1);
   /* hero 过场：--hero-total 是**唯一旋钮**（总时长，脚本也从 CSS 读它作为跳转时点）；
@@ -671,7 +675,9 @@ hr{border:0;border-top:var(--ui-hair) solid var(--ui-line);margin:var(--sp-6) 0}
   .hero-stat:nth-child(2){animation:heroStatIn calc(var(--hero-stagger)*6) var(--ease-out) calc(var(--hero-stagger)*9) both}
   .hero-stat:nth-child(3){animation:heroStatIn calc(var(--hero-stagger)*6) var(--ease-out) calc(var(--hero-stagger)*10) both}
   .hero-sweep{animation:heroSweepIn calc(var(--hero-stagger)*4) var(--ease-in) calc(var(--hero-stagger)*14) both}
-  .hero-hint{animation:heroBackIn calc(var(--hero-stagger)*3) var(--ease) calc(var(--hero-stagger)*17.5) both}
+  /* #14-4：提示原本排在 17.5 步（≈700ms）且用 both → 前 700ms 不可见，
+     与「点击跳过」的可用性冲突。改为与四角同段（3 步 ≈120ms）入场。 */
+  .hero-hint{animation:heroBackIn calc(var(--hero-stagger)*3) var(--ease) calc(var(--hero-stagger)*3) both}
 }
 
 /* ---------------- 主题切换过渡（新 token 覆盖到的元素，160ms 颜色过渡） ---------------- */
@@ -705,4 +711,9 @@ hr{border:0;border-top:var(--ui-hair) solid var(--ui-line);margin:var(--sp-6) 0}
   .topbar::before{display:none}
   body{background:#FFFFFF;color:#000000}
   .ccard,.chip,.cat,.quick-a,.dash-cell{background:transparent}
+  /* #14-3：这三类的「面」画在伪元素上（::before 边框层 / ::after 面板层），
+     只清自身 background 会让暗色面板整块印在纸上 → 一并清掉伪元素背景。 */
+  .cat::before,.cat::after,.quick-a::before,.quick-a::after,
+  .dash-cell::before,.dash-cell::after,.ccard::before,.ccard::after,
+  .chip::before,.chip::after{background:transparent}
 }

@@ -682,7 +682,7 @@ IDLE ──click/Enter──▶ ENTER ──120ms──▶ HERO ──720ms─�
 | **A12** | 明暗主题契约 | 四组合（系统亮/系统暗/`data-theme=light`/`data-theme=dark`）各截图 + 对比度 | `--ui-ink` 对 `--ui-panel`、`--ui-mute` 对 `--ui-panel` ≥ 4.5:1；overlay 与卡片在四组合下均可见 | T / R |
 | **A13** | 零外链（hero.js 无 `[13]` 那种兜底检查，需手工） | `grep -nE "(src\|href)[[:space:]]*=[[:space:]]*[\"']https?://" wiki/assets/hero.js wiki/assets/style.css` | 无输出。注：`[13]:433` 只对 `timeline.js` 做了同样检查，hero.js **没有**自动覆盖 | C / R |
 | **A14** | 打印不回归 | `verify_site.py` 的 `[12]` + Ctrl+P 预览 | `[12] @media print=True display:none=True`；`.hero-overlay` 打印时 `display:none`；hero 不产生分页空白 | T |
-| **A15** | 缺图角色兜底 | 断网/临时重命名 `assets/icons/character/1014.png` 后点 Saber | 剪影显示、动画完成、正常跳转；恢复文件后无残留错误 | T |
+| **A15** | 缺图角色兜底（#14-10 更正：按附录 R-1 口径判定，勿按字面「剪影」测） | 断网/临时重命名 `assets/icons/character/1014.png` 后点 Saber | **有 avatar 的角色走上采样降级**（仍显示人像），**完全无图的 4 个角色**才走 SVG 剪影；两种情形均须动画完成、正常跳转，恢复文件后无残留错误 | T |
 | **A16** | 产物未被手改 | `git status --porcelain` | 只有预期源文件变更；`wiki/pages/**` 与 `wiki/data/**` 无改动（α 下） | C / L |
 
 **A2 脚本**（把 `[5]` 的同一套正则套到新增 JS 上；`[5]` 本身只扫 `index.html` + `style.css` + 生成页，见 `tools/verify_site.py:187,704`）
