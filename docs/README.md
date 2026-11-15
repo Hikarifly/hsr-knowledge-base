@@ -2,8 +2,9 @@
 
 > **定位**：`docs/` 下所有文档的唯一入口。任何文档都必须能从本文件**两跳内**到达（`README.md` → 本文件 → 目标）。
 > **规范与裁决**：文档冲突时按 [`协作要求与行动准则.md`](../协作要求与行动准则.md) §十「权威层级」裁定（实测 > `D-*` > 规范 > 叙述）。
-> **唯一真值表**：[`metrics.md`](metrics.md)（规模数字只从这里取，禁手改）。
-> **术语**：[`GLOSSARY.md`](../GLOSSARY.md)（34 条中英对照）。
+> **唯一真值表**：[`metrics.md`](metrics.md)（规模数字只从这里取，禁手改；含 B 线负向指标 `labeled_nonofficial_*`）。
+> **术语**：[`GLOSSARY.md`](../GLOSSARY.md)（35 条中英对照）。
+> **专名对照**：[`专名对照表.md`](专名对照表.md)（E2 对账产物）。
 
 ---
 
@@ -13,15 +14,15 @@
 |---|---|---|
 | **① 入口** | 先看这里：仓库结构、术语、多语言 README | [仓库结构](仓库结构.md) · [GLOSSARY](../GLOSSARY.md) · [README_en](README_en.md) / [ja](README_ja.md) / [ko](README_ko.md) / [zh-Hant](README_zh-Hant.md) |
 | **② 规范** | 写数据前必读 | [格式规范与要求](../格式规范与要求.md) · [协作要求与行动准则](../协作要求与行动准则.md) · [翻译办法](../翻译办法.md) · [数据来源](../数据来源.md) · [遗器规则](../遗器规则.md) |
-| **③ 决策** | 为什么这么做 | [ADR 索引](adr/README.md)（17 条，覆盖 D-001–D-077） · [决策记录](prompts/决策记录.md)（原始 `D-*`） |
-| **④ 台账与产物** | 缺什么、做了什么 | [待补充清单](待补充清单.md) · [metrics](metrics.md) · [pipeline](pipeline/) · [reviews](reviews/) · [test-reports](test-reports/) · [designs](designs/) · [evidence 取证](evidence/) · [log 日志分卷](log/) |
+| **③ 决策与计划** | 为什么这么做、接下来做什么 | [ADR 索引](adr/README.md)（18 条，覆盖 D-001–D-078） · [决策记录](prompts/决策记录.md) · [ROADMAP](ROADMAP.md) |
+| **④ 台账与产物** | 缺什么、做了什么 | [待补充清单](待补充清单.md) · [metrics](metrics.md) · [专名对照表](专名对照表.md) · [pipeline](pipeline/) · [reviews](reviews/) · [test-reports](test-reports/) · [designs](designs/) · [evidence 取证](evidence/) · [log 日志分卷](log/) |
 | **⑤ 历史** | 仅供溯源，数字不维护 | [待办清单（2026-08-28 快照）](../待办清单.md) · [SRR_ID对照报告](SRR_ID对照报告.md) · [对账_4.6](对账_4.6.md) · [多语言报告](multilang_final_report.md) |
 
 ---
 
-## 二、全量索引（112 个文件）
+## 二、全量索引（114 个文件）
 
-### 根目录（25）
+### 根目录（26）
 
 - [Data Sources](data-sources.md)
 - [GitHub Wiki 可行性评估（Lead）](github_wiki可行性评估.md)
@@ -40,6 +41,7 @@
 - [StarRailRes-master 与 HSR 知识库 实体ID 对照报告](SRR_ID对照报告.md)
 - [データソース](データソース.md)
 - [三月七（冰·存护）](三月七_冰_四星_详细示例.md)
+- [E2 专名对照表（总索引）](专名对照表.md)
 - [仓库结构说明（目录规范 · 入库边界 · 清理规则）](仓库结构.md)
 - [多语言数据查找与分类行动准则](多语言数据查找行动准则_DeepSeek.md)
 - [4.6 版本对账报告（A1 / A2 / A3）](对账_4.6.md)
@@ -49,7 +51,7 @@
 - [豆包任务提示词 · 星穹铁道知识库 4.6 版本建库（v3.3 · 以本地规范为准）](豆包提示词_4.6版本建库.md)
 - [데이터 출처](데이터소스.md)
 
-### ADR 架构决策记录（18）
+### ADR 架构决策记录（19）
 
 - [ADR-0001 · 协作分工与执行通道](adr/ADR-0001-协作分工与执行通道.md)
 - [ADR-0002 · 权威层级与术语唯一](adr/ADR-0002-权威层级与术语唯一.md)
@@ -68,6 +70,7 @@
 - [ADR-0015 · 站点生成与图片策略](adr/ADR-0015-站点生成与图片策略.md)
 - [ADR-0016 · 提交发布与 issue 治理](adr/ADR-0016-提交发布与issue治理.md)
 - [ADR-0017 · 文档分卷与字段口径的批次治理](adr/ADR-0017-文档分卷与字段口径的批次治理.md)
+- [ADR-0018 · 事实正确性闸门](adr/ADR-0018-事实正确性闸门.md)
 - [ADR 索引与决策映射](adr/README.md)
 
 ### 更新日志分卷（3）
@@ -172,4 +175,4 @@
 
 ---
 
-*更新于 2026-11-15｜两跳可达率由 `tools/verify_docs.py` 复算*
+*更新于 2026-11-15（含 E 线闸门落地）｜两跳可达率由 `tools/verify_docs.py` 复算*

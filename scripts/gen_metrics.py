@@ -206,6 +206,23 @@ def collect():
         m["md_commit_" + lang] = git_md_count(lang)
         m["md_worktree_" + lang] = worktree_md_count(lang)
 
+    # 负向指标（D-078 / 主线 B）：镜像中含「本地化来源：非官方」§九标注的文件数，
+    # 只减不增——替换为官方原文后应下降。只读文件头 8KB（标注固定在头部元信息区）。
+    def labeled_nonofficial_count(lang):
+        n = 0
+        needle = "本地化来源：非官方".encode("utf-8")
+        for p in (ROOT / lang).rglob("*.md"):
+            try:
+                with open(p, "rb") as fh:
+                    if needle in fh.read(8192):
+                        n += 1
+            except OSError:
+                continue
+        return n
+
+    for lang in MIRROR_DIRS:
+        m["labeled_nonofficial_" + lang] = labeled_nonofficial_count(lang)
+
     m["detail_total"] = detail_total
     for key, _label, _d in DETAIL_ORDER:
         if key == "simulated":
@@ -395,6 +412,7 @@ def render(m, now):
              "wikilink_total", "wikilink_dead", "wikilink_dead_data", "wikilink_files",
              "vf_issue", "vf_known", "mirror_commit_avg_round10", "mirror_gap",
              "versioned_pages", "dated_pages"]
+    keys += ["labeled_nonofficial_" + l for l in MIRROR_DIRS]
     for k in keys:
         a("| `%s` | %s |" % (k, fmt(m.get(k))))
     for v, n in sorted(m["versions"].items(), key=lambda kv: _vkey(kv[0]), reverse=True):

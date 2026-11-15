@@ -815,6 +815,8 @@ def check_metrics():
     required += ["md_commit_" + l for l in METRIC_MIRRORS]
     required += ["md_worktree_" + l for l in METRIC_MIRRORS]
     required += ["doctype_" + d for d in METRIC_DOCTYPE_DIRS]
+    # D-078：B 线负向指标（打标文件数）必须是实测整数——缺 key 或写「未核实」即 FAIL
+    required += ["labeled_nonofficial_" + l for l in METRIC_MIRRORS]
     missing = [k for k in required if not isinstance(truth.get(k), int)]
     if missing:
         print("[16] 规模真值: docs/metrics.md 缺失或未实测的 key：%s" % ", ".join(missing))

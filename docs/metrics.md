@@ -1,7 +1,7 @@
 # 知识库规模真值表（`docs/metrics.md`）
 
 > **本文件由 `scripts/gen_metrics.py` 自动生成，请勿手工编辑。**
-> 生成时间：`2026-11-15 09:47:11`
+> 生成时间：`2026-11-15 10:08:16`
 > 重新生成：`python scripts/gen_metrics.py`（幂等：除上一行时间外，两次运行输出逐字节相同）
 > 校验：`python tools/verify_site.py` 的 `[16]` 项解析本文末尾的**机器可读真值**，
 > 与 `README.md` · `docs/README_{en,ja,ko,zh-Hant}.md` · `docs/仓库结构.md` 出现的规模数字逐项比对。
@@ -96,7 +96,7 @@
 | 站点页内链接总数 | 96,883 | `wiki/data/link_report.json` 的 `total`（`build_wiki.py` 产物） |
 | 站点死链数 | **0** | 同上 `dead`（要求 0） |
 | 站点未收录（优雅降级为纯文本） | 0 | 同上 `missing`（合规未入库内容，属预期，不算死链） |
-| 全库双链 `[[…]]` 总数 | 23,158 | `scripts/verify_links.py`（扫描 30,704 个 `.md`） |
+| 全库双链 `[[…]]` 总数 | 23,158 | `scripts/verify_links.py`（扫描 30,705 个 `.md`） |
 | 全库双链死链数 | 62 | 同上（含文档里的示例行，故非 0） |
 | **数据区**（五语目录）双链死链数 | **0** | 同上；**判据（要求 0）**：非 0 时 `verify_links.py` 退出码为 1 |
 
@@ -169,13 +169,17 @@
 | `wikilink_total` | 23,158 |
 | `wikilink_dead` | 62 |
 | `wikilink_dead_data` | 0 |
-| `wikilink_files` | 30,704 |
+| `wikilink_files` | 30,705 |
 | `vf_issue` | 0 |
 | `vf_known` | 156 |
 | `mirror_commit_avg_round10` | 5,710 |
 | `mirror_gap` | 167 |
 | `versioned_pages` | 6,359 |
 | `dated_pages` | 6,685 |
+| `labeled_nonofficial_en_us` | 5,764 |
+| `labeled_nonofficial_zh_tw` | 5,786 |
+| `labeled_nonofficial_ja_jp` | 5,754 |
+| `labeled_nonofficial_ko_kr` | 5,751 |
 | `version_4.7` | 22 |
 | `version_4.6` | 2,489 |
 | `version_4.5` | 3,847 |
