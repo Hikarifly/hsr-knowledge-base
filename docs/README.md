@@ -7,23 +7,21 @@
 
 ---
 
-> 长线计划见 [ROADMAP.md](ROADMAP.md)；术语见 [../GLOSSARY.md](../GLOSSARY.md)；数字真值见 [metrics.md](metrics.md)。
-
 ## 一、五区导航
 
 | 区 | 看什么 | 入口 |
 |---|---|---|
 | **① 入口** | 先看这里：仓库结构、术语、多语言 README | [仓库结构](仓库结构.md) · [GLOSSARY](../GLOSSARY.md) · [README_en](README_en.md) / [ja](README_ja.md) / [ko](README_ko.md) / [zh-Hant](README_zh-Hant.md) |
 | **② 规范** | 写数据前必读 | [格式规范与要求](../格式规范与要求.md) · [协作要求与行动准则](../协作要求与行动准则.md) · [翻译办法](../翻译办法.md) · [数据来源](../数据来源.md) · [遗器规则](../遗器规则.md) |
-| **③ 决策** | 为什么这么做 | [ADR 索引](adr/README.md)（17 条，覆盖 D-001–D-076） · [决策记录](prompts/决策记录.md)（原始 `D-*`） |
-| **④ 台账与产物** | 缺什么、做了什么 | [待补充清单](待补充清单.md) · [metrics](metrics.md) · [pipeline](pipeline/) · [reviews](reviews/) · [test-reports](test-reports/) · [designs](designs/) · [log 日志分卷](log/) |
+| **③ 决策** | 为什么这么做 | [ADR 索引](adr/README.md)（17 条，覆盖 D-001–D-077） · [决策记录](prompts/决策记录.md)（原始 `D-*`） |
+| **④ 台账与产物** | 缺什么、做了什么 | [待补充清单](待补充清单.md) · [metrics](metrics.md) · [pipeline](pipeline/) · [reviews](reviews/) · [test-reports](test-reports/) · [designs](designs/) · [evidence 取证](evidence/) · [log 日志分卷](log/) |
 | **⑤ 历史** | 仅供溯源，数字不维护 | [待办清单（2026-08-28 快照）](../待办清单.md) · [SRR_ID对照报告](SRR_ID对照报告.md) · [对账_4.6](对账_4.6.md) · [多语言报告](multilang_final_report.md) |
 
 ---
 
-## 二、全量索引（110 个文件）
+## 二、全量索引（112 个文件）
 
-### 根目录（24）
+### 根目录（25）
 
 - [Data Sources](data-sources.md)
 - [GitHub Wiki 可行性评估（Lead）](github_wiki可行性评估.md)
@@ -38,6 +36,7 @@
 - [崩壊：スターレイル · データ知識ベース（HSR）](README_ja.md)
 - [붕괴: 스타레일 · 데이터 지식 베이스 (HSR)](README_ko.md)
 - [崩壞：星穹鐵道 · 資料知識庫（HSR）](README_zh-Hant.md)
+- [HSR 知识库 · 长线计划（Roadmap）](ROADMAP.md)
 - [StarRailRes-master 与 HSR 知识库 实体ID 对照报告](SRR_ID对照报告.md)
 - [データソース](データソース.md)
 - [三月七（冰·存护）](三月七_冰_四星_详细示例.md)
@@ -157,6 +156,10 @@
 
 - [测试报告 · 站点视觉重构（R1）+ 角色 hero 动画（R2）](test-reports/site-hero.md)
 
+### 取证记录（1）
+
+- [E2 专名对照表：仙舟将军 / 龙尊（五语）](evidence/xianzhou_generals_5lang.md)
+
 ---
 
 ## 三、维护规则
@@ -169,4 +172,4 @@
 
 ---
 
-*更新于 2026-11-15（批 2 + 批 3 日志分卷）｜两跳可达率由 `tools/verify_docs.py` 复算*
+*更新于 2026-11-15｜两跳可达率由 `tools/verify_docs.py` 复算*
