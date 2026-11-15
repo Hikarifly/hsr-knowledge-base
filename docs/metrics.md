@@ -1,7 +1,7 @@
 # 知识库规模真值表（`docs/metrics.md`）
 
 > **本文件由 `scripts/gen_metrics.py` 自动生成，请勿手工编辑。**
-> 生成时间：`2026-11-15 10:12:45`
+> 生成时间：`2026-11-15 10:41:29`
 > 重新生成：`python scripts/gen_metrics.py`（幂等：除上一行时间外，两次运行输出逐字节相同）
 > 校验：`python tools/verify_site.py` 的 `[16]` 项解析本文末尾的**机器可读真值**，
 > 与 `README.md` · `docs/README_{en,ja,ko,zh-Hant}.md` · `docs/仓库结构.md` 出现的规模数字逐项比对。
@@ -93,7 +93,7 @@
 
 | 指标 | 值 | 来源 |
 |---|---|---|
-| 站点页内链接总数 | 96,883 | `wiki/data/link_report.json` 的 `total`（`build_wiki.py` 产物） |
+| 站点页内链接总数 | 96,931 | `wiki/data/link_report.json` 的 `total`（`build_wiki.py` 产物） |
 | 站点死链数 | **0** | 同上 `dead`（要求 0） |
 | 站点未收录（优雅降级为纯文本） | 0 | 同上 `missing`（合规未入库内容，属预期，不算死链） |
 | 全库双链 `[[…]]` 总数 | 23,158 | `scripts/verify_links.py`（扫描 30,706 个 `.md`） |
@@ -116,7 +116,7 @@
 | **带版本页合计** | **6,359** |
 | 带日期页合计 | 6,685 |
 
-> `stats.js` 生成时刻：`2026-11-15 09:44`。版本分布 ≠ 最新版本：库内绝大多数页面的 `> 数据版本：` 仍是收录时的版本。
+> `stats.js` 生成时刻：`2026-11-15 10:41`。版本分布 ≠ 最新版本：库内绝大多数页面的 `> 数据版本：` 仍是收录时的版本。
 
 ---
 
@@ -163,7 +163,7 @@
 | `doctype_worldview` | 8 |
 | `doctype_货币战争` | 7 |
 | `doctype_rules` | 5 |
-| `link_total` | 96,883 |
+| `link_total` | 96,931 |
 | `link_dead` | 0 |
 | `link_missing` | 0 |
 | `wikilink_total` | 23,158 |
