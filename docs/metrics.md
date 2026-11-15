@@ -1,7 +1,7 @@
 # 知识库规模真值表（`docs/metrics.md`）
 
 > **本文件由 `scripts/gen_metrics.py` 自动生成，请勿手工编辑。**
-> 生成时间：`2026-11-15 01:33:43`
+> 生成时间：`2026-11-15 09:41:34`
 > 重新生成：`python scripts/gen_metrics.py`（幂等：除上一行时间外，两次运行输出逐字节相同）
 > 校验：`python tools/verify_site.py` 的 `[16]` 项解析本文末尾的**机器可读真值**，
 > 与 `README.md` · `docs/README_{en,ja,ko,zh-Hant}.md` · `docs/仓库结构.md` 出现的规模数字逐项比对。
@@ -96,7 +96,7 @@
 | 站点页内链接总数 | 96,883 | `wiki/data/link_report.json` 的 `total`（`build_wiki.py` 产物） |
 | 站点死链数 | **0** | 同上 `dead`（要求 0） |
 | 站点未收录（优雅降级为纯文本） | 0 | 同上 `missing`（合规未入库内容，属预期，不算死链） |
-| 全库双链 `[[…]]` 总数 | 23,146 | `scripts/verify_links.py`（扫描 30,700 个 `.md`） |
+| 全库双链 `[[…]]` 总数 | 23,158 | `scripts/verify_links.py`（扫描 30,704 个 `.md`） |
 | 全库双链死链数 | 62 | 同上（含文档里的示例行，故非 0） |
 | **数据区**（五语目录）双链死链数 | **0** | 同上；**判据（要求 0）**：非 0 时 `verify_links.py` 退出码为 1 |
 
@@ -116,7 +116,7 @@
 | **带版本页合计** | **6,359** |
 | 带日期页合计 | 6,685 |
 
-> `stats.js` 生成时刻：`2026-11-15 01:33`。版本分布 ≠ 最新版本：库内绝大多数页面的 `> 数据版本：` 仍是收录时的版本。
+> `stats.js` 生成时刻：`2026-11-15 09:41`。版本分布 ≠ 最新版本：库内绝大多数页面的 `> 数据版本：` 仍是收录时的版本。
 
 ---
 
@@ -125,7 +125,7 @@
 | 校验器 | 命令 | 结果 |
 |---|---|---|
 | `verify_fields` | `cd zh_cn && python ../scripts/verify_fields.py`（**必须在 `zh_cn` 下运行**） | 扫描 6,685 个 `.md`；详情 5,991；异常 **0**；已知待补充 **156** |
-| `verify_links` | `python scripts/verify_links.py`（仓库根） | 双链 23,146；死链 62（其中数据区 **0**） |
+| `verify_links` | `python scripts/verify_links.py`（仓库根） | 双链 23,158；死链 62（其中数据区 **0**） |
 | `verify_site` | `python tools/verify_site.py`（仓库根） | `[1]`–`[16]` 全 PASS；`[16]` 即比对本文真值 |
 
 ---
@@ -166,10 +166,10 @@
 | `link_total` | 96,883 |
 | `link_dead` | 0 |
 | `link_missing` | 0 |
-| `wikilink_total` | 23,146 |
+| `wikilink_total` | 23,158 |
 | `wikilink_dead` | 62 |
 | `wikilink_dead_data` | 0 |
-| `wikilink_files` | 30,700 |
+| `wikilink_files` | 30,704 |
 | `vf_issue` | 0 |
 | `vf_known` | 156 |
 | `mirror_commit_avg_round10` | 5,710 |
