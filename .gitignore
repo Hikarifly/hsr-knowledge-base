@@ -28,3 +28,11 @@ docs/对话记录.xml
 */quest/剧情文本/
 # 分支转换前的历史备份（已移出仓库）
 zh_cn/quest/剧情文本_备份_分支转换前/
+
+# ---- 永不入库的用户文件（issue #19 交接约定）----
+docs/评测_*
+scripts/mimo_batch.py
+
+# ---- 本机会话数据与大体积本地备份（issue #28）----
+.workbuddy/
+StarRailRes-master.bak-*/
