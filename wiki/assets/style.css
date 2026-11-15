@@ -70,6 +70,10 @@ a.dead{color:var(--dead);text-decoration:line-through}
 .entity-big{border-radius:0}
 .icon-fallback{border-radius:0;background:var(--soft);border:1px dashed var(--line)}
 .site-footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+/* #29 错误反馈链接：低调灰字 + 下划线（六禁面外：<a> 外链不禁） */
+.fb-link{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.fb-link:hover{color:var(--ink)}
+
 /* 响应式 */
 @media(max-width:640px){
   body{padding:24px 16px 48px}
