@@ -75,6 +75,27 @@ try {
     const ok = await evaluate('document.documentElement.scrollWidth <= innerWidth');
     if (!ok) throw new Error(`Homepage overflows at ${width}px`);
   }
+  // Search index data may come from PR content; it must remain inert in the DOM.
+  const searchEscapes = await evaluate(`(() => {
+    const box = document.querySelector('#search');
+    const attack = '<img src=x onerror=alert(1)>';
+    const item = {title: 'test-unsafe-title ' + attack, path: 'test"file.html',
+      category: attack, summary: attack};
+    window.TITLES.push(item);
+    box.value = 'test-unsafe-title';
+    box.dispatchEvent(new Event('input', {bubbles: true}));
+    const result = document.querySelector('#results li');
+    const ok = result && result.querySelector('a').textContent === item.title &&
+      result.querySelector('.result-summary').textContent === attack &&
+      result.querySelector('.stat').textContent === attack &&
+      !result.querySelector('img, script, svg') &&
+      result.querySelector('a').getAttribute('href').includes('%22');
+    window.TITLES.pop();
+    box.value = '';
+    box.dispatchEvent(new Event('input', {bubbles: true}));
+    return !!ok;
+  })()`);
+  if (!searchEscapes) throw new Error('Search index data was interpreted as markup');
   const longQueryOk = await evaluate(`(() => {
     const box = document.querySelector('#search');
     box.value = 'x'.repeat(500);
