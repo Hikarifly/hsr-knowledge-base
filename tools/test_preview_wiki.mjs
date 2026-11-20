@@ -76,7 +76,11 @@ try {
     const m=JSON.parse(event.data);
     if (m.id && pending.has(m.id)) { const p=pending.get(m.id); pending.delete(m.id); m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result); }
     if (m.method === 'Fetch.requestPaused') {
-      const data = m.params.request.url.includes('/actions/workflows/') ? {id:42,state:'active',path:'.github/workflows/wiki-trusted-data.yml'}
+      const url = m.params.request.url;
+      const isRunList = url.includes('/actions/workflows/') && url.includes('/runs?');
+      const trustedList = isRunList && url.includes('wiki-trusted-data.yml');
+      const data = isRunList ? {workflow_runs:[{id:trustedList ? 2 : 1,run_attempt:1,event:trustedList ? 'pull_request_target' : 'pull_request',path:`.github/workflows/${trustedList ? 'wiki-trusted-data.yml' : 'wiki-quality.yml'}`,head_sha:head,status:'completed',conclusion:'success',run_started_at:'2026-01-01T00:00:00Z',pull_requests:[{number:37}]}]}
+        : url.includes('/actions/workflows/') ? {id:42,state:'active',path:'.github/workflows/wiki-trusted-data.yml'}
         : m.params.request.url.endsWith('/actions/runs/2') ? {id:2,workflow_id:42,repository:{id:1},run_attempt:1,event:'pull_request_target',status:'completed',conclusion:'success',head_sha:head,path:'.github/workflows/wiki-trusted-data.yml',pull_requests:[{number:37,head:{sha:head,repo:{id:1}},base:{sha:base,repo:{id:1}}}]}
         : m.params.request.url.includes('/actions/runs/')
           ? {id:1,run_attempt:1,event:'pull_request', conclusion:'success',head_sha:head,path:'.github/workflows/wiki-quality.yml',pull_requests:[{number:37,head:{sha:head},base:{sha:base}}]}

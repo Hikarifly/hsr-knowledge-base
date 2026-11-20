@@ -114,6 +114,29 @@
     } finally { clearTimeout(timeout); }
   }
 
+  async function latestRun(workflow, event) {
+    const path = `.github/workflows/${workflow}`;
+    let latest = null;
+    for (let page = 1; page <= 11; page++) {
+      const result = await json(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/runs?event=${event}&head_sha=${manifest.head}&per_page=100&page=${page}`);
+      const runs = result.workflow_runs;
+      if (!Array.isArray(runs) || runs.length > 100 || (page === 11 && runs.length)) throw new Error('Invalid run list');
+      for (const run of runs) {
+        if (run.event !== event || run.path !== path || run.head_sha !== manifest.head) continue;
+        if (!Array.isArray(run.pull_requests) || !run.pull_requests.length) throw new Error('Unbound workflow run');
+        const matches = run.pull_requests.filter(item => item.number === Number(number));
+        if (!matches.length) continue;
+        if (matches.length !== 1 || !Number.isSafeInteger(run.id) || run.id < 1 ||
+            typeof run.run_started_at !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(run.run_started_at) ||
+            !Number.isFinite(Date.parse(run.run_started_at))) throw new Error('Invalid workflow run');
+        if (!latest || run.run_started_at > latest.run_started_at ||
+            (run.run_started_at === latest.run_started_at && run.id > latest.id)) latest = run;
+      }
+      if (runs.length < 100) return latest;
+    }
+    throw new Error('Too many workflow runs');
+  }
+
   async function object(path, kind) {
     if (!manifest || !Object.prototype.hasOwnProperty.call(manifest.files, path)) return null;
     const digest = manifest.files[path];
@@ -173,11 +196,13 @@
         return true;
       }
       if (liveServiceSeen) throw new Error('Preview service unavailable');
-      const [pr, run, workflow, trustedRun] = await Promise.all([
+      const [pr, run, workflow, trustedRun, latestBuild, latestTrusted] = await Promise.all([
         json(`https://api.github.com/repos/${REPO}/pulls/${number}`),
         json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.run}`),
         json(`https://api.github.com/repos/${REPO}/actions/workflows/wiki-trusted-data.yml`),
-        json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.trusted_run}`)
+        json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.trusted_run}`),
+        latestRun('wiki-quality.yml', 'pull_request'),
+        latestRun('wiki-trusted-data.yml', 'pull_request_target')
       ]);
       const associated = Array.isArray(run.pull_requests) && run.pull_requests.some(item =>
         item.number === Number(number) && item.head?.sha === manifest.head && item.base?.sha === manifest.base);
@@ -188,6 +213,10 @@
       if (pr.state !== 'open' || pr.head?.sha !== manifest.head || pr.base?.sha !== manifest.base ||
           run.id !== manifest.run || run.run_attempt !== manifest.run_attempt || run.event !== 'pull_request' || run.conclusion !== 'success' || run.head_sha !== manifest.head ||
           run.path !== '.github/workflows/wiki-quality.yml' || !associated ||
+          latestBuild?.id !== manifest.run || latestBuild?.run_attempt !== manifest.run_attempt ||
+          latestBuild?.status !== 'completed' || latestBuild?.conclusion !== 'success' ||
+          latestTrusted?.id !== manifest.trusted_run || latestTrusted?.run_attempt !== manifest.trusted_attempt ||
+          latestTrusted?.status !== 'completed' || latestTrusted?.conclusion !== 'success' ||
           workflow.state !== 'active' || workflow.path !== '.github/workflows/wiki-trusted-data.yml' ||
           !Number.isSafeInteger(workflow.id) || workflow.id < 1 ||
           !Number.isSafeInteger(pr.head?.repo?.id) || !Number.isSafeInteger(pr.base?.repo?.id) ||

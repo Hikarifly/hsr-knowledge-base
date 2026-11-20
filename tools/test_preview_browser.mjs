@@ -24,6 +24,7 @@ parent.postMessage({type:'review:approved'}, '*');
 </script></body></html>`);
 const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, run_attempt:1, trusted_run:2, trusted_attempt:1, files};
 let canaries = 0, stale = false, delayNextPr = false, trustedAttempt = 1;
+let newerFailedBuild = false, newerRunningTrusted = false;
 let reviewState = 'APPROVED';
 const review = {id: 1, state: 'APPROVED', user: {login:'Reviewer',type:'User'}, commit_id:head, submitted_at:'2026-01-01T00:00:00Z'};
 let captured = Math.floor(Date.now() / 1000);
@@ -113,7 +114,16 @@ try {
     if (m.id && pending.has(m.id)) { const p=pending.get(m.id); pending.delete(m.id); m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result); }
     if (m.method === 'Fetch.requestPaused') {
       githubRequests++;
-      const data = m.params.request.url.includes('/reviews?') ? [{...review,state:reviewState}]
+      const url = m.params.request.url;
+      const isRunList = url.includes('/actions/workflows/') && url.includes('/runs?');
+      const trustedList = isRunList && url.includes('wiki-trusted-data.yml');
+      const event = trustedList ? 'pull_request_target' : 'pull_request';
+      const workflowPath = `.github/workflows/${trustedList ? 'wiki-trusted-data.yml' : 'wiki-quality.yml'}`;
+      const oldRun = {id:trustedList ? 2 : 1,run_attempt:trustedList ? trustedAttempt : 1,event,path:workflowPath,head_sha:head,status:'completed',conclusion:'success',run_started_at:'2026-01-01T00:00:00Z',pull_requests:[{number:37}]};
+      const newer = (trustedList ? newerRunningTrusted : newerFailedBuild)
+        ? [{...oldRun,id:trustedList ? 4 : 3,status:trustedList ? 'in_progress' : 'completed',conclusion:trustedList ? null : 'failure',run_started_at:'2026-01-02T00:00:00Z'}] : [];
+      const data = url.includes('/reviews?') ? [{...review,state:reviewState}]
+        : isRunList ? {workflow_runs:[oldRun,...newer]}
         : m.params.request.url.includes('/actions/workflows/') ? {id:42,state:'active',path:'.github/workflows/wiki-trusted-data.yml'}
         : m.params.request.url.endsWith('/actions/runs/2') ? {id:2,workflow_id:42,repository:{id:1},run_attempt:trustedAttempt,event:'pull_request_target',status:'completed',conclusion:'success',head_sha:head,path:'.github/workflows/wiki-trusted-data.yml',pull_requests:[{number:37,head:{sha:head,repo:{id:1}},base:{sha:base,repo:{id:1}}}]}
         : m.params.request.url.includes('/actions/runs/')
@@ -197,6 +207,17 @@ try {
     await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
     await wait(500);
     if (await evaluate("document.querySelector('#preview').hidden")) throw new Error('Valid trusted check did not restore preview');
+    for (const kind of ['build', 'trusted']) {
+      if (kind === 'build') newerFailedBuild = true;
+      else newerRunningTrusted = true;
+      await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+      await wait(500);
+      if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('Newer ' + kind + ' check left old preview visible');
+      newerFailedBuild = newerRunningTrusted = false;
+      await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+      await wait(500);
+      if (await evaluate("document.querySelector('#preview').hidden")) throw new Error('Preview did not recover after latest check restored');
+    }
   }
   delayNextPr = true;
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
