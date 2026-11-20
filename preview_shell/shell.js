@@ -8,7 +8,7 @@
   const link = document.getElementById('pr-link');
   let frame = document.getElementById('preview');
   let manifest, bridge, verified = false, currentPage = 'index.html';
-  let requests = 0, activeReads = 0, bytesRead = 0, generation = 0;
+  let requests = 0, activeReads = 0, bytesRead = 0, generation = 0, verification = 0;
   const waiters = [];
   const objectCache = new Map();
   const mime = {js: 'text/javascript', css: 'text/css', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp'};
@@ -64,6 +64,10 @@
   }
 
   async function verify() {
+    const attempt = ++verification;
+    verified = false;
+    generation++;
+    frame.hidden = true;
     try {
       const [pr, run] = await Promise.all([
         json(`https://api.github.com/repos/${REPO}/pulls/${number}`),
@@ -71,6 +75,7 @@
       ]);
       const associated = Array.isArray(run.pull_requests) && run.pull_requests.some(item =>
         item.number === Number(number) && item.head?.sha === manifest.head && item.base?.sha === manifest.base);
+      if (attempt !== verification) return false;
       if (pr.state !== 'open' || pr.head?.sha !== manifest.head || pr.base?.sha !== manifest.base ||
           run.event !== 'pull_request' || run.conclusion !== 'success' || run.head_sha !== manifest.head ||
           run.path !== '.github/workflows/wiki-quality.yml' || !associated) {
@@ -81,6 +86,7 @@
       frame.hidden = false;
       return true;
     } catch {
+      if (attempt !== verification) return false;
       fail('无法验证当前提交或检查结果，预览暂不可用。');
       return false;
     }

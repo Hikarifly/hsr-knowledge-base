@@ -44,10 +44,12 @@ node --check preview_shell/shell.js
 node --check preview_shell/frame.js
 $env:WIKI_BROWSER = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 node tools/test_preview_browser.mjs
+node tools/test_preview_wiki.mjs
 node tools/test_wiki_browser.mjs
 ```
 
 浏览器检查需要 Node.js 22 或更新版本与 Chrome/Edge，路径按本机安装位置调整。它使用 `file://` 检查 1280×800、600×900 和 390×900 视口、正文摘要检索、键盘打开、减少动态效果及禁用 JavaScript 后的浏览。
+真实 Wiki 预览检查需要先生成站点并复制图标；PR 自动检查会准备这些素材。
 
 `preview_shell/` 和 `tools/preview_bundle.py` 是隔离预览的实验性组件，尚无可信发布流程，不应直接部署为公开预览。浏览器测试覆盖隔离、主动跳转、基本导航和过期隐藏；外层内容安全策略限制框架跳转，已在 Chromium 内核浏览器验证。正式发布前仍需验证目标浏览器兼容性并完成发布流程与安全审查。
 

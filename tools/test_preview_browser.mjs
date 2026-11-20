@@ -23,7 +23,7 @@ setTimeout(() => document.querySelector('#next').click(), 500);
 parent.postMessage({type:'review:approved'}, '*');
 </script></body></html>`);
 const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, files};
-let canaries = 0, stale = false;
+let canaries = 0, stale = false, delayNextPr = false;
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
@@ -73,7 +73,9 @@ try {
       const data = m.params.request.url.includes('/actions/runs/')
         ? {event:'pull_request', conclusion:'success',head_sha:head,path:'.github/workflows/wiki-quality.yml',pull_requests:[{number:37,head:{sha:head},base:{sha:base}}]}
         : {state:'open',head:{sha:stale ? 'c'.repeat(40) : head},base:{sha:base}};
-      send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'},{name:'Access-Control-Allow-Origin',value:'*'}],body:Buffer.from(JSON.stringify(data)).toString('base64')},m.sessionId).catch(() => {});
+      const delay = !m.params.request.url.includes('/actions/runs/') && delayNextPr ? 800 : 0;
+      if (delay) delayNextPr = false;
+      setTimeout(() => send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'},{name:'Access-Control-Allow-Origin',value:'*'}],body:Buffer.from(JSON.stringify(data)).toString('base64')},m.sessionId).catch(() => {}), delay);
     }
   };
   const target=await send('Target.createTarget',{url:'about:blank'});
@@ -99,6 +101,9 @@ try {
   events = await evaluate('window.testEvents || []');
   if (!events.some(e => e.type === 'test:csp' && e.directive === 'frame-src' && e.blocked?.endsWith('/canary'))) throw new Error('No blocked frame navigation was observed');
   if (outer.review !== '未经人工审查' || !outer.notice.includes('非官方') || !outer.visible || canaries) throw new Error('Preview escaped its notice or made a network request');
+  delayNextPr = true;
+  await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await wait(100);
   stale = true;
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   let hidden = false;
@@ -107,6 +112,8 @@ try {
     if (await evaluate("document.querySelector('#preview').hidden")) { hidden = true; break; }
   }
   if (!hidden) throw new Error('Stale preview remained visible');
+  await wait(1000);
+  if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('An older verification restored a stale preview');
   console.log('PASS: sandbox rendering, parent isolation, blocked network and frame navigation, notice integrity, navigation and stale preview');
 } finally {
   socket?.close(); browser.kill(); server.close(); await wait(250);
