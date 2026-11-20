@@ -31,7 +31,7 @@
       proof.head === manifest.head && Number.isSafeInteger(proof.captured_at) &&
       age >= -5000 && age < 30000 && typeof proof.approved === 'boolean' &&
       proof.preview?.head === manifest.head && proof.preview?.base === manifest.base &&
-      proof.preview?.run === manifest.run && proof.preview?.trusted_run === manifest.trusted_run &&
+      proof.preview?.run === manifest.run && proof.preview?.run_attempt === manifest.run_attempt && proof.preview?.trusted_run === manifest.trusted_run &&
       proof.preview?.trusted_attempt === manifest.trusted_attempt && proof.preview?.valid === true;
   }
 
@@ -184,7 +184,7 @@
         item.head?.repo?.id === pr.head?.repo?.id && item.base?.repo?.id === pr.base?.repo?.id).length === 1;
       if (attempt !== verification) return false;
       if (pr.state !== 'open' || pr.head?.sha !== manifest.head || pr.base?.sha !== manifest.base ||
-          run.event !== 'pull_request' || run.conclusion !== 'success' || run.head_sha !== manifest.head ||
+          run.id !== manifest.run || run.run_attempt !== manifest.run_attempt || run.event !== 'pull_request' || run.conclusion !== 'success' || run.head_sha !== manifest.head ||
           run.path !== '.github/workflows/wiki-quality.yml' || !associated ||
           workflow.state !== 'active' || workflow.path !== '.github/workflows/wiki-trusted-data.yml' ||
           !Number.isSafeInteger(workflow.id) || workflow.id < 1 ||
@@ -258,7 +258,7 @@
       manifest = await json(`previews/${number}/manifest.json`);
       if (manifest.version !== 1 || manifest.repo !== REPO || manifest.pr !== Number(number) ||
           !/^[0-9a-f]{40}$/.test(manifest.head) || !/^[0-9a-f]{40}$/.test(manifest.base) ||
-          !Number.isSafeInteger(manifest.run) || manifest.run < 1 ||
+          !Number.isSafeInteger(manifest.run) || manifest.run < 1 || !Number.isSafeInteger(manifest.run_attempt) || manifest.run_attempt < 1 ||
           !Number.isSafeInteger(manifest.trusted_run) || manifest.trusted_run < 1 ||
           !Number.isSafeInteger(manifest.trusted_attempt) || manifest.trusted_attempt < 1 ||
           !manifest.files || typeof manifest.files !== 'object') throw new Error('Invalid manifest');

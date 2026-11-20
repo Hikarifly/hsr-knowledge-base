@@ -39,7 +39,7 @@ def metadata(repo, number, manifest):
     run = gh_api(f"repos/{repo}/actions/runs/{manifest['run']}")
     matches = [item for item in run['pull_requests'] if item['number'] == number
                and item['head']['sha'] == manifest['head'] and item['base']['sha'] == manifest['base']]
-    valid_build = (run['id'] == manifest['run'] and run['event'] == 'pull_request'
+    valid_build = (run['id'] == manifest['run'] and run['run_attempt'] == manifest['run_attempt'] and run['event'] == 'pull_request'
             and run['status'] == 'completed' and run['conclusion'] == 'success'
             and run['path'] == '.github/workflows/wiki-quality.yml'
             and run['head_sha'] == manifest['head'] and len(matches) == 1)
@@ -72,6 +72,7 @@ def validated_manifest(bundle, repo, number):
                 or type(manifest['pr']) is not int or manifest['pr'] != number
                 or not SHA.fullmatch(manifest['head']) or not SHA.fullmatch(manifest['base'])
                 or type(manifest['run']) is not int or manifest['run'] < 1
+                or type(manifest['run_attempt']) is not int or manifest['run_attempt'] < 1
                 or type(manifest['trusted_run']) is not int or manifest['trusted_run'] < 1
                 or type(manifest['trusted_attempt']) is not int or manifest['trusted_attempt'] < 1
                 or not isinstance(files, dict) or not 0 < len(files) <= MAX_FILES or 'index.html' not in files):

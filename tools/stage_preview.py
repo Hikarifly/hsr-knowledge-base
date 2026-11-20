@@ -39,7 +39,7 @@ def select_artifact(repo, number, run_id, pr, run, pages, external_approved=Fals
                 or run['id'] != run_id or run['repository']['id'] != repo_id
                 or run['event'] != 'pull_request' or run['status'] != 'completed'
                 or run['conclusion'] != 'success' or run['path'] != WORKFLOW
-                or run['head_sha'] != head):
+                or run['head_sha'] != head or type(run['run_attempt']) is not int or run['run_attempt'] < 1):
             raise ValueError
         if not isinstance(head_repo, dict) or type(head_repo.get('id')) is not int:
             raise ValueError
@@ -51,7 +51,7 @@ def select_artifact(repo, number, run_id, pr, run, pages, external_approved=Fals
                    and item['head']['repo']['id'] == head_repo['id']]
         if len(matches) != 1:
             raise ValueError
-        expected = f'wiki-preview-{number}-{head}'
+        expected = f"wiki-preview-{number}-{head}-{run['run_attempt']}"
         artifacts = [item for page in pages for item in page['artifacts'] if item['name'] == expected]
         if len(artifacts) != 1:
             raise ValueError
@@ -166,7 +166,7 @@ def stage(repo, number, run_id, destination, *, trusted_run_id):
         review = snapshot(repo, number) if external else None
         approved = bool(review and review.get('head') == pr.get('head', {}).get('sha') and review.get('approved') is True)
         artifact = select_artifact(repo, number, run_id, pr, run, pages, approved)
-        return (*artifact, *trusted_check(number, pr, workflow, trusted_run, trusted_run_id))
+        return (*artifact, *trusted_check(number, pr, workflow, trusted_run, trusted_run_id), run['run_attempt'])
 
     selected = metadata()
     destination = Path(destination)
@@ -180,7 +180,7 @@ def stage(repo, number, run_id, destination, *, trusted_run_id):
         if metadata() != selected:
             raise InvalidPreviewArtifact('PR or artifact changed during staging')
         build_bundle(root / 'site', root / 'bundle', repo=repo, pr=number, head=selected[1], base=selected[2],
-                     run=run_id, trusted_run=selected[3], trusted_attempt=selected[4])
+                     run=run_id, run_attempt=selected[5], trusted_run=selected[3], trusted_attempt=selected[4])
         # Check again after the expensive conversion; never publish this output blindly.
         if metadata() != selected:
             raise InvalidPreviewArtifact('PR or artifact changed during conversion')

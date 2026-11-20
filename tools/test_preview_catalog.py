@@ -32,7 +32,7 @@ class PreviewCatalogTests(unittest.TestCase):
         self.addCleanup(review_patch.stop)
         for number in self.states:
             build_bundle(self.site, self.bundles / str(number), repo='owner/repo', pr=number, head=HEAD, base=BASE,
-                         run=number + 10, trusted_run=number + 20, trusted_attempt=1)
+                         run=number + 10, run_attempt=1, trusted_run=number + 20, trusted_attempt=1)
 
     def api(self, path):
         if '/actions/workflows/' in path:
@@ -50,7 +50,7 @@ class PreviewCatalogTests(unittest.TestCase):
                     'pull_requests': [{'number': number - 20, 'head': {'sha': HEAD, 'repo': {'id': 1}},
                                        'base': {'sha': BASE, 'repo': {'id': 1}}}]}
         number -= 10
-        return {'id': number + 10, 'event': 'pull_request', 'status': 'completed', 'conclusion': 'success',
+        return {'id': number + 10, 'run_attempt': 1, 'event': 'pull_request', 'status': 'completed', 'conclusion': 'success',
                 'path': '.github/workflows/wiki-quality.yml', 'head_sha': HEAD,
                 'pull_requests': [{'number': number, 'head': {'sha': HEAD}, 'base': {'sha': BASE}}]}
 
@@ -111,6 +111,15 @@ class PreviewCatalogTests(unittest.TestCase):
         with patch('tools.preview_catalog.gh_api', side_effect=api):
             self.assertEqual(assemble('owner/repo', self.bundles, self.shell, self.root / 'out'), [2])
         self.assertFalse((self.root / 'out' / 'previews' / '1').exists())
+
+    def test_repeated_build_invalidates_previous_preview(self):
+        def api(path):
+            result = self.api(path)
+            if path.endswith('/actions/runs/11'):
+                result['run_attempt'] = 2
+            return result
+        with patch('tools.preview_catalog.gh_api', side_effect=api):
+            self.assertEqual(assemble('owner/repo', self.bundles, self.shell, self.root / 'out'), [2])
 
     def test_trusted_check_changing_during_assembly_aborts_output(self):
         calls = 0

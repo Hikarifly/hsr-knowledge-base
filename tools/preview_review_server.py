@@ -95,7 +95,7 @@ class ReviewServer(ThreadingHTTPServer):
                     raise ValueError('Preview status expired during lookup')
                 value['source'] = 'service-v1'
                 value['preview'] = {'head': manifest['head'], 'base': manifest['base'],
-                                    'run': manifest['run'], 'trusted_run': manifest['trusted_run'],
+                                    'run': manifest['run'], 'run_attempt': manifest['run_attempt'], 'trusted_run': manifest['trusted_run'],
                                     'trusted_attempt': manifest['trusted_attempt'], 'valid': valid}
             self.cache[number] = value
             while len(self.cache) > MAX_CACHE:

@@ -22,11 +22,12 @@ def safe_json(value):
     return json.dumps(value, ensure_ascii=True, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
-def build_bundle(site, destination, *, repo, pr, head, base, run, trusted_run=None, trusted_attempt=None):
+def build_bundle(site, destination, *, repo, pr, head, base, run, run_attempt=None, trusted_run=None, trusted_attempt=None):
     """Encode files into hashed JSON objects and a manifest in a fresh directory."""
     site, destination = Path(site), Path(destination)
     if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo)
             or not isinstance(pr, int) or pr < 1 or not isinstance(run, int) or run < 1
+            or (run_attempt is not None and (type(run_attempt) is not int or run_attempt < 1))
             or ((trusted_run is not None or trusted_attempt is not None) and
                 (type(trusted_run) is not int or trusted_run < 1 or type(trusted_attempt) is not int or trusted_attempt < 1))
             or not re.fullmatch(r"[0-9a-f]{40}", head) or not re.fullmatch(r"[0-9a-f]{40}", base)):
@@ -69,6 +70,8 @@ def build_bundle(site, destination, *, repo, pr, head, base, run, trusted_run=No
         if "index.html" not in files:
             raise InvalidPreviewArtifact("Preview index.html is missing")
         manifest = {"version": 1, "repo": repo, "pr": pr, "head": head, "base": base, "run": run, "files": files}
+        if run_attempt is not None:
+            manifest['run_attempt'] = run_attempt
         if trusted_run is not None:
             manifest.update(trusted_run=trusted_run, trusted_attempt=trusted_attempt)
         (stage / "manifest.json").write_text(safe_json(manifest), encoding="ascii")

@@ -15,10 +15,10 @@ HEAD, BASE = 'a' * 40, 'b' * 40
 PR = {'number': 7, 'state': 'open', 'head': {'sha': HEAD, 'repo': {'id': 1}},
       'base': {'sha': BASE, 'repo': {'id': 1, 'full_name': 'owner/repo'}}}
 RUN = {'id': 10, 'repository': {'id': 1}, 'event': 'pull_request', 'status': 'completed',
-       'conclusion': 'success', 'path': '.github/workflows/wiki-quality.yml', 'head_sha': HEAD,
+       'conclusion': 'success', 'path': '.github/workflows/wiki-quality.yml', 'head_sha': HEAD, 'run_attempt': 1,
        'pull_requests': [{'number': 7, 'head': {'sha': HEAD, 'repo': {'id': 1}},
                           'base': {'sha': BASE, 'repo': {'id': 1}}}]}
-ARTIFACT = {'id': 20, 'name': f'wiki-preview-7-{HEAD}', 'expired': False, 'size_in_bytes': 123,
+ARTIFACT = {'id': 20, 'name': f'wiki-preview-7-{HEAD}-1', 'expired': False, 'size_in_bytes': 123,
             'workflow_run': {'id': 10, 'repository_id': 1, 'head_repository_id': 1, 'head_sha': HEAD}}
 WORKFLOW = {'id': 42, 'state': 'active', 'path': '.github/workflows/wiki-trusted-data.yml'}
 TRUSTED_RUN = {'id': 11, 'workflow_id': 42, 'repository': {'id': 1}, 'event': 'pull_request_target',
@@ -33,6 +33,10 @@ class StagingTests(unittest.TestCase):
 
     def test_matching_metadata(self):
         self.assertEqual(self.select(), (20, HEAD, BASE))
+        old = dict(ARTIFACT, id=19, name=f'wiki-preview-7-{HEAD}-1')
+        current = dict(ARTIFACT, id=21, name=f'wiki-preview-7-{HEAD}-2')
+        self.assertEqual(self.select(run=dict(RUN, run_attempt=2), pages=[{'artifacts': [old, current]}]),
+                         (21, HEAD, BASE))
 
     def test_stale_failed_or_unmatched_inputs_are_rejected(self):
         cases = []
@@ -40,7 +44,7 @@ class StagingTests(unittest.TestCase):
             pr = copy.deepcopy(PR); pr[field] = value; cases.append((pr, RUN, None))
         pr = copy.deepcopy(PR); pr['base']['sha'] = 'c' * 40; cases.append((pr, RUN, None))
         for field, value in [('head_sha', 'c' * 40), ('conclusion', 'failure'), ('status', 'in_progress'),
-                             ('event', 'push'), ('path', '.github/workflows/other.yml')]:
+                             ('event', 'push'), ('path', '.github/workflows/other.yml'), ('run_attempt', 2)]:
             run = copy.deepcopy(RUN); run[field] = value; cases.append((PR, run, None))
         for field, value in [('expired', True), ('name', 'wrong'), ('size_in_bytes', 0)]:
             item = copy.deepcopy(ARTIFACT); item[field] = value; cases.append((PR, RUN, [{'artifacts': [item]}]))
@@ -101,7 +105,7 @@ class StagingTests(unittest.TestCase):
                 stage('owner/repo', 7, 10, root / 'bundle', trusted_run_id=11)
             self.assertTrue((root / 'bundle' / 'manifest.json').is_file())
             manifest = json.loads((root / 'bundle' / 'manifest.json').read_text(encoding='ascii'))
-            self.assertEqual((manifest['trusted_run'], manifest['trusted_attempt']), (11, 1))
+            self.assertEqual((manifest['run_attempt'], manifest['trusted_run'], manifest['trusted_attempt']), (1, 11, 1))
             with patch('tools.stage_preview.gh_api', side_effect=good * 2 + [changed, RUN, pages, WORKFLOW, TRUSTED_RUN]), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
                 with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'stale', trusted_run_id=11)
             self.assertFalse((root / 'stale').exists())
