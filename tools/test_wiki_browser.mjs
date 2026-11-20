@@ -114,16 +114,19 @@ try {
     if (i === 99) throw new Error('Enter did not open the selected search result');
   }
   const article = pathToFileURL(path.resolve('wiki/pages/worldview/势力与组织.html')).href;
-  await navigate(article);
-  const articleOk = await evaluate(`(() => {
-    const details = document.querySelector('.page-toc details');
-    if (!details || !details.querySelector('a')) return false;
-    details.open = true;
-    const link = details.querySelector('a');
-    return !!document.getElementById(decodeURIComponent(link.hash.slice(1))) &&
-      document.documentElement.scrollWidth <= innerWidth;
-  })()`);
-  if (!articleOk) throw new Error('Article TOC or mobile layout failed');
+  for (const width of [1280, 600, 390]) {
+    await cdp('Emulation.setDeviceMetricsOverride', { width, height: width === 1280 ? 800 : 900, deviceScaleFactor: 1, mobile: width < 640 });
+    await navigate(article);
+    const articleOk = await evaluate(`(() => {
+      const details = document.querySelector('.page-toc details');
+      if (!details || !details.querySelector('a')) return false;
+      details.open = true;
+      const link = details.querySelector('a');
+      return !!document.getElementById(decodeURIComponent(link.hash.slice(1))) &&
+        document.documentElement.scrollWidth <= innerWidth;
+    })()`);
+    if (!articleOk) throw new Error(`Article TOC or layout failed at ${width}px`);
+  }
   await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await navigate(home);
   if (!await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches &&
