@@ -40,7 +40,8 @@ class PreviewArtifactTests(unittest.TestCase):
         with self.assertRaises(InvalidPreviewArtifact):
             archive_path("a\\outside")
         for path in ["../outside", "/outside", "C:/outside", "a/../outside",
-                     "a//outside", "a/NUL.txt", "a/space. ", "a/\x01bad"]:
+                     "a//outside", "a/NUL.txt", "a/CON .txt", "a/LPT¹.log", "a/CONIN$",
+                     "a/space. ", "a/\x01bad", "a/<bad>", "a/file?.js", "a/" + "x" * 256]:
             with self.subTest(path=path):
                 self.reject([("index.html", "home"), (path, "bad")])
                 self.assertFalse((self.root / "outside").exists())

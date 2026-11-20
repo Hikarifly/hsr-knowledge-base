@@ -19,6 +19,16 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
+      - name: Fetch pinned preview icons
+        if: github.event_name == 'pull_request'
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/Mar-7th/StarRailRes.git .srr
+          cd .srr
+          git sparse-checkout set icon
+          git fetch --depth 1 origin dbe8cdfcfb0bf657b9fe1cf92d5537f118ccb487
+          git checkout dbe8cdfcfb0bf657b9fe1cf92d5537f118ccb487
+          cd ..
+          python wiki/copy_icons.py
       - name: Build static Wiki
         run: python wiki/build_wiki.py
       - name: Check data and tracked-link baseline
@@ -27,7 +37,7 @@ jobs:
         run: |
           python tools/verify_site.py
           python tools/verify_docs.py
-          python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact -v
+          python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview -v
       - name: Check JavaScript syntax
         run: |
           node --check wiki/assets/app.js
@@ -36,3 +46,15 @@ jobs:
         env:
           WIKI_BROWSER: /usr/bin/google-chrome
         run: node tools/test_wiki_browser.mjs
+      - name: Package untrusted preview input
+        if: github.event_name == 'pull_request'
+        run: python tools/package_preview.py wiki "$RUNNER_TEMP/wiki-preview.zip"
+      - name: Upload preview input (not published)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wiki-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/wiki-preview.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

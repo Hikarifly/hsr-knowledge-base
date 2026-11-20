@@ -21,7 +21,7 @@ MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_PATH_BYTES = 1024
 MAX_DIRECTORY_BYTES = 16 * 1024 * 1024
-WINDOWS_DEVICE = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.I)
+WINDOWS_DEVICE = re.compile(r"^(?:con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])(?: *\..*)?$", re.I)
 
 
 class InvalidPreviewArtifact(ValueError):
@@ -69,7 +69,8 @@ def archive_path(name):
     parts = name.rstrip("/").split("/")
     if any(
         part in ("", ".", "..") or part.endswith((".", " "))
-        or any(ord(char) < 32 or ord(char) == 127 for char in part)
+        or len(part.encode("utf-8")) > 255
+        or any(ord(char) < 32 or ord(char) == 127 or char in '<>"|?*' for char in part)
         or WINDOWS_DEVICE.fullmatch(part)
         for part in parts
     ):
