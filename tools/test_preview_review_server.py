@@ -7,9 +7,11 @@ import time
 import unittest
 import urllib.error
 import urllib.request
+from unittest.mock import patch
 from pathlib import Path
 
 from tools.preview_review_server import ReviewServer
+from tools.test_reconcile_previews import PR, BUILD, TRUSTED
 
 HEAD = 'a' * 40
 
@@ -139,6 +141,34 @@ class ReviewServerTests(unittest.TestCase):
             manifest_path.write_text('{}', encoding='ascii')
             self.assertEqual(self.get('/previews/37/review.json')[0], 503)
             self.assertNotIn(37, self.server.cache)
+
+    def test_live_service_rechecks_latest_runs_and_external_approval(self):
+        with tempfile.TemporaryDirectory() as directory:
+            site = Path(directory)
+            bundle = site / 'previews' / '7'
+            bundle.mkdir(parents=True)
+            (bundle / 'manifest.json').write_text(json.dumps({'version': 1, 'repo': 'owner/repo', 'pr': 7,
+                'head': HEAD, 'base': 'b' * 40, 'run': 10, 'run_attempt': 1, 'trusted_run': 11,
+                'trusted_attempt': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
+            self.server.site = site
+            build = dict(BUILD, run_attempt=1)
+            builds = [build]
+            pr = dict(PR)
+            def api(path, paginate=False):
+                if path.endswith('/pulls/7'): return pr
+                if '/wiki-quality.yml/runs?' in path: return [{'workflow_runs': builds}]
+                if '/wiki-trusted-data.yml/runs?' in path: return [{'workflow_runs': [TRUSTED]}]
+                raise AssertionError(path)
+            with patch('tools.verify_preview_publication.gh_api', side_effect=api), \
+                 patch('tools.verify_preview_publication.metadata', return_value=True), \
+                 patch('tools.verify_preview_publication.snapshot', return_value={'head': HEAD, 'approved': False}):
+                self.assertEqual(self.get('/previews/7/review.json')[0], 200)
+                self.server.cache.clear()
+                builds.append(dict(build, id=12, conclusion='failure', run_started_at='2026-11-21T00:01:00Z'))
+                self.assertEqual(self.get('/previews/7/review.json')[0], 503)
+                builds.pop()
+                pr['head'] = {'sha': HEAD, 'repo': {'id': 2}}
+                self.assertEqual(self.get('/previews/7/review.json')[0], 503)
 
 
 if __name__ == '__main__': unittest.main()

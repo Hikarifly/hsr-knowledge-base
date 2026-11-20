@@ -17,7 +17,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from tools.preview_review import REPO_PATTERN, snapshot
-from tools.preview_catalog import metadata, validated_manifest
+from tools.preview_catalog import validated_manifest
+from tools.verify_preview_publication import verify_preview
 from tools.preview_release_state import active_site
 
 PATH = re.compile(r'^/previews/([1-9][0-9]{0,7})/review\.json$')
@@ -31,7 +32,7 @@ class ReviewServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, repo, reader=snapshot, site=None, validator=metadata, site_root=None):
+    def __init__(self, address, repo, reader=snapshot, site=None, validator=verify_preview, site_root=None):
         if not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo):
             raise ValueError('Invalid repository')
         self.repo, self.reader = repo, reader

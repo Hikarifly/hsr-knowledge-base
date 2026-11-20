@@ -33,7 +33,7 @@
 - `tools/stage_preview.py` 校验并转换单个 PR 的预览包，并要求相同 PR、提交和目标版本的独立数据检查通过；`tools/preview_catalog.py` 重新生成多 PR 目录，并重新核验该检查。二者都不部署网站。
 - `python -m tools.reconcile_previews OWNER/REPO preview_shell 输出目录` 可发现当前 PR 和最新检查，暂存合格产物并生成新目录；输出目录必须不存在。它不切换或部署线上站点，且需要先启用独立检查才能与真实 GitHub 端到端联调。
 - `python -m tools.preview_release OWNER/REPO preview_shell 专用目录` 可在受信任的本机专用目录中生成新版本，复核后原子切换 `current`；失败保留现有版本。清理只处理带本项目标识且至少保留 10 分钟的旧版本，并保留上一个版本。异常退出可能留下 `.publish-lock`，应确认没有进程运行后人工处理。该命令不提供外网服务，也不会自行定期运行。
-- `tools/preview_review_server.py` 可通过 `--site-root 专用目录` 读取当前版本并提供预览和短期审核状态；生产环境需要独立 HTTPS 托管、只读 GitHub 凭据和访问限流。它不负责生成版本或清理。
+- `tools/preview_review_server.py` 可通过 `--site-root 专用目录` 读取当前版本并提供预览和短期审核状态；每次缓存更新时重新核验最新工作流运行及外部 PR 的批准，查询失败或状态变化则预览不可用。生产环境需要独立 HTTPS 托管、只读 GitHub 凭据和访问限流。它不负责生成版本或清理。
 
 独立检查工作流会从外部 PR 检出内容用于数据扫描，因此显式启用了 checkout 的 `allow-unsafe-pr-checkout`。该任务不得运行 PR 提供的代码、安装其依赖、使用其工作流、缓存或提供发布凭据；后续修改必须保留这些边界。检查器和基线必须来自可信目标分支。
 
