@@ -10,11 +10,13 @@
   let frame = document.getElementById('preview');
   let manifest, bridge, verified = false, currentPage = 'index.html';
   let requests = 0, activeReads = 0, bytesRead = 0, generation = 0, verification = 0, reviewCheck = 0;
+  let liveServiceSeen = false, liveExpiry = 0;
   const waiters = [];
   const objectCache = new Map();
   const mime = {js: 'text/javascript', css: 'text/css', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp'};
 
   function fail(message) {
+    liveExpiry++;
     verified = false;
     generation++;
     reviewCheck++;
@@ -23,12 +25,49 @@
     status.textContent = message;
   }
 
+  function validLiveProof(proof) {
+    const age = Date.now() - proof.captured_at * 1000;
+    return proof.source === 'service-v1' && proof.repo === REPO && proof.pr === Number(number) &&
+      proof.head === manifest.head && Number.isSafeInteger(proof.captured_at) &&
+      age >= -5000 && age < 30000 && typeof proof.approved === 'boolean' &&
+      proof.preview?.head === manifest.head && proof.preview?.base === manifest.base &&
+      proof.preview?.run === manifest.run && proof.preview?.valid === true;
+  }
+
+  function showLiveReview(proof, check) {
+    if (proof.approved !== true) return;
+    reviewLabel.textContent = '已有有效人工批准';
+    const remaining = proof.captured_at * 1000 + 30000 - Date.now();
+    setTimeout(() => { if (check === reviewCheck) reviewLabel.textContent = '未经人工审查'; }, Math.max(0, remaining));
+  }
+
+  function armLiveExpiry(proof) {
+    const token = ++liveExpiry;
+    const remaining = proof.captured_at * 1000 + 30000 - Date.now();
+    setTimeout(() => {
+      if (token !== liveExpiry || !verified) return;
+      verification++;
+      fail('无法验证当前提交或检查结果，预览暂不可用。');
+    }, Math.max(0, remaining));
+  }
+
   async function refreshReview() {
     const check = ++reviewCheck;
     reviewLabel.textContent = '未经人工审查';
     if (!verified) return;
     try {
       const proof = await json(`previews/${number}/review.json`);
+      if (proof.source === 'service-v1') {
+        liveServiceSeen = true;
+        if (check !== reviewCheck || !verified) return;
+        if (!validLiveProof(proof)) {
+          verification++;
+          return fail('无法验证当前提交或检查结果，预览暂不可用。');
+        }
+        armLiveExpiry(proof);
+        showLiveReview(proof, check);
+        return;
+      }
       const expires = proof.captured_at * 1000 + 60000;
       if (proof.repo !== REPO || proof.pr !== Number(number) || proof.head !== manifest.head ||
           proof.approved !== true || !Number.isSafeInteger(proof.captured_at) ||
@@ -54,14 +93,21 @@
       reviewLabel.textContent = '已有有效人工批准';
       setTimeout(() => { if (check === reviewCheck) reviewLabel.textContent = '未经人工审查'; }, Math.max(0, expires - Date.now()));
     } catch {
-      if (check === reviewCheck) reviewLabel.textContent = '未经人工审查';
+      if (check === reviewCheck && liveServiceSeen) {
+        verification++;
+        fail('无法验证当前提交或检查结果，预览暂不可用。');
+      } else if (check === reviewCheck) reviewLabel.textContent = '未经人工审查';
     }
   }
 
   async function json(url) {
-    const response = await fetch(url, {cache: 'no-store', credentials: 'omit', redirect: 'error'});
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return response.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(url, {cache: 'no-store', credentials: 'omit', redirect: 'error', signal: controller.signal});
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return await response.json();
+    } finally { clearTimeout(timeout); }
   }
 
   async function object(path, kind) {
@@ -109,6 +155,20 @@
     generation++;
     frame.hidden = true;
     try {
+      let proof;
+      try { proof = await json(`previews/${number}/review.json`); } catch {}
+      if (attempt !== verification) return false;
+      if (proof?.source === 'service-v1') {
+        liveServiceSeen = true;
+        if (!validLiveProof(proof)) throw new Error('Preview is stale');
+        verified = true;
+        armLiveExpiry(proof);
+        status.textContent = '当前提交的自动检查已通过；预览内容由 PR 提供。';
+        frame.hidden = false;
+        showLiveReview(proof, reviewCheck);
+        return true;
+      }
+      if (liveServiceSeen) throw new Error('Preview service unavailable');
       const [pr, run] = await Promise.all([
         json(`https://api.github.com/repos/${REPO}/pulls/${number}`),
         json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.run}`)

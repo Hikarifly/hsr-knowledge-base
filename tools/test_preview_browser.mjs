@@ -56,17 +56,24 @@ let service, serviceRoot;
 let origin = `http://127.0.0.1:${server.address().port}`;
 if (useService) {
   serviceRoot = await mkdtemp(path.join(tmpdir(), 'hsr-preview-service-'));
+  await writeFile(path.join(serviceRoot,'state.txt'),'approved');
   for (const name of ['index.html','shell.js','frame.js','shell.css']) await copyFile(path.join('preview_shell',name), path.join(serviceRoot,name));
   const dest = path.join(serviceRoot,'previews','37');
   await mkdir(path.join(dest,'objects'),{recursive:true});
   await writeFile(path.join(dest,'manifest.json'),JSON.stringify(manifest));
   for (const [hash, value] of objects) await writeFile(path.join(dest,'objects',hash+'.json'),value);
   const code = `import sys,time
+from pathlib import Path
+import tools.preview_review_server as service_module
 from tools.preview_review_server import ReviewServer
+service_module.CACHE_SECONDS=0
 head='a'*40
+def state(): return (Path(sys.argv[1])/'state.txt').read_text()
 def review(repo,number):
- return {'pr':number,'head':head,'approved':True,'reviews':[[1,'APPROVED','Reviewer','User',head,'2026-01-01T00:00:00Z']],'captured_at':int(time.time())}
-s=ReviewServer(('127.0.0.1',0),'ganmayou2333/hsr-knowledge-base',reader=review,site=sys.argv[1])
+ if state() == 'unavailable': raise RuntimeError('service unavailable')
+ approved=state() == 'approved'
+ return {'pr':number,'head':head,'approved':approved,'reviews':[[1,'APPROVED' if approved else 'DISMISSED','Reviewer','User',head,'2026-01-01T00:00:00Z']],'captured_at':int(time.time())}
+s=ReviewServer(('127.0.0.1',0),'ganmayou2333/hsr-knowledge-base',reader=review,site=sys.argv[1],validator=lambda repo,number,manifest: state() != 'stale')
 print(s.server_port,flush=True)
 s.serve_forever()`;
   service = spawn('python',['-u','-c',code,serviceRoot],{stdio:['ignore','pipe','pipe']});
@@ -100,10 +107,12 @@ try {
     const command = {id:++id,method,params,...(sessionId ? {sessionId} : {})};
     return new Promise((resolve,reject) => {pending.set(command.id,{resolve,reject}); socket.send(JSON.stringify(command)); setTimeout(() => {if(pending.delete(command.id)) reject(new Error('CDP timeout: '+method));},15000).unref();});
   }
+  let githubRequests = 0;
   socket.onmessage = event => {
     const m=JSON.parse(event.data);
     if (m.id && pending.has(m.id)) { const p=pending.get(m.id); pending.delete(m.id); m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result); }
     if (m.method === 'Fetch.requestPaused') {
+      githubRequests++;
       const data = m.params.request.url.includes('/reviews?') ? [{...review,state:reviewState}]
         : m.params.request.url.includes('/actions/runs/')
         ? {event:'pull_request', conclusion:'success',head_sha:head,path:'.github/workflows/wiki-quality.yml',pull_requests:[{number:37,head:{sha:head},base:{sha:base}}]}
@@ -144,6 +153,7 @@ try {
   }
   if (!approved) throw new Error('Current authorized review was not shown');
   reviewState = 'DISMISSED';
+  if (useService) await writeFile(path.join(serviceRoot,'state.txt'),'revoked');
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   let unreviewed = false;
   for (let i=0;i<100;i++) {
@@ -163,6 +173,7 @@ try {
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await wait(100);
   stale = true;
+  if (useService) await writeFile(path.join(serviceRoot,'state.txt'),'stale');
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   let hidden = false;
   for (let i=0;i<100;i++) {
@@ -172,6 +183,21 @@ try {
   if (!hidden) throw new Error('Stale preview remained visible');
   await wait(1000);
   if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('An older verification restored a stale preview');
+  if (useService) {
+    await writeFile(path.join(serviceRoot,'state.txt'),'approved');
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    let restored = false;
+    for (let i=0;i<100;i++) {
+      await wait(100);
+      if (await evaluate("!document.querySelector('#preview').hidden")) { restored = true; break; }
+    }
+    if (!restored) throw new Error('Valid preview did not recover');
+    await writeFile(path.join(serviceRoot,'state.txt'),'unavailable');
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait(500);
+    if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('Unavailable service left preview visible');
+  }
+  if (useService && githubRequests) throw new Error('Browser contacted GitHub in service mode');
   console.log('PASS: sandbox rendering, parent isolation, blocked network and frame navigation, notice integrity, navigation and stale preview');
 } finally {
   socket?.close(); browser.kill(); service?.kill(); server.close(); await wait(250);

@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from tools.preview_review import REPO_PATTERN, snapshot
+from tools.preview_catalog import metadata, validated_manifest
 
 PATH = re.compile(r'^/previews/([1-9][0-9]{0,7})/review\.json$')
 OBJECT = re.compile(r'^/previews/([1-9][0-9]{0,7})/objects/([0-9a-f]{64})\.json$')
@@ -29,10 +30,11 @@ class ReviewServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, repo, reader=snapshot, site=None):
+    def __init__(self, address, repo, reader=snapshot, site=None, validator=metadata):
         if not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo):
             raise ValueError('Invalid repository')
         self.repo, self.reader = repo, reader
+        self.validator = validator
         self.site = Path(site) if site is not None else None
         if self.site is not None:
             if self.site.is_symlink() or not self.site.is_dir():
@@ -77,11 +79,23 @@ class ReviewServer(ThreadingHTTPServer):
                     or not re.fullmatch(r'[0-9a-f]{40}', result['head'])
                     or type(result.get('approved')) is not bool
                     or type(result.get('captured_at')) is not int
-                    or not 0 <= time.time() - result['captured_at'] < CACHE_SECONDS
+                    or not 0 <= time.time() - result['captured_at'] < 25
                     or not isinstance(result.get('reviews'), list) or len(result['reviews']) > 1000):
                 raise ValueError('Invalid review snapshot')
             value = {key: result[key] for key in ('pr', 'head', 'approved', 'reviews', 'captured_at')}
             value['repo'] = self.repo
+            if self.site is not None:
+                bundle = self.site / 'previews' / str(number)
+                if (bundle.is_symlink() or not bundle.is_dir()
+                        or (self.site / 'previews').is_symlink()):
+                    raise ValueError('Preview is not available')
+                manifest = validated_manifest(bundle, self.repo, number)
+                valid = bool(self.validator(self.repo, number, manifest))
+                if time.time() - result['captured_at'] >= 25:
+                    raise ValueError('Preview status expired during lookup')
+                value['source'] = 'service-v1'
+                value['preview'] = {'head': manifest['head'], 'base': manifest['base'],
+                                    'run': manifest['run'], 'valid': valid}
             self.cache[number] = value
             while len(self.cache) > MAX_CACHE:
                 self.cache.popitem(last=False)

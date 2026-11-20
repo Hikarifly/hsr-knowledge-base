@@ -83,18 +83,23 @@ class ReviewServerTests(unittest.TestCase):
             (site / 'shell.js').write_text('trusted', encoding='utf-8')
             bundle = site / 'previews' / '37'
             (bundle / 'objects').mkdir(parents=True)
-            (bundle / 'manifest.json').write_text('{}', encoding='ascii')
+            (bundle / 'manifest.json').write_text(json.dumps({'version': 1, 'repo': 'owner/repo', 'pr': 37,
+                'head': HEAD, 'base': 'b' * 40, 'run': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
             (bundle / 'review.json').write_text('{"approved":false}', encoding='ascii')
             (bundle / 'source.html').write_text('<script>bad</script>', encoding='ascii')
             digest = 'a' * 64
             (bundle / 'objects' / f'{digest}.json').write_text('{"data":""}', encoding='ascii')
             self.server.site = site
+            self.server.validator = lambda repo, number, manifest: True
             with urllib.request.urlopen(self.base + '/?pr=37', timeout=5) as response:
                 self.assertEqual(response.read(), b'<h1>trusted</h1>')
                 self.assertEqual(response.headers['Content-Security-Policy'], "frame-src 'none'")
             self.assertEqual(self.get('/previews/37/manifest.json')[0], 200)
             self.assertEqual(self.get(f'/previews/37/objects/{digest}.json')[0], 200)
-            self.assertTrue(self.get('/previews/37/review.json')[1]['approved'])
+            review = self.get('/previews/37/review.json')[1]
+            self.assertTrue(review['approved'])
+            self.assertEqual(review['source'], 'service-v1')
+            self.assertTrue(review['preview']['valid'])
             for path in ['/previews/37/source.html', '/previews/37/objects/../review.json',
                          '/previews/37/objects/invalid.json', '/shell.js?x=1']:
                 self.assertEqual(self.get(path)[0], 404)
