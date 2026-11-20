@@ -33,7 +33,7 @@ try:
 except OSError:
     TOP_DIRS = ()
 
-def esc(s): return html.escape(s, quote=False)
+def esc(s): return html.escape(s, quote=True)
 
 def urlq(path):
     """把页面相对路径编码为合法 URL（含全角引号/空格/中文）。保留 '/'。
