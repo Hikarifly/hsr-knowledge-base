@@ -8,6 +8,20 @@
 
 `docs/templates/preview-pages-workflow.yml` 是供独立预览仓库审查的工作流模板，不会在本仓库运行。它每 10 分钟尝试从本仓库可信的 `main` 检出发布代码，整理预览，再由独立任务部署 Pages；整理或发布前复核失败不会进入部署任务。复核会检查每个已收录 PR 的当前状态、最新检查及外部投稿的批准，无法消除复核后至实际部署之间的时间窗口。`SOURCE_READ_TOKEN` 仅提供给整理步骤，部署权限仅在部署任务中授予。定时触发可能延迟，运行失败也不会刷新快照。安装前必须先完成 #41 的可信检查启用和真实联调，核实令牌所需的源仓库只读权限（包括产物和审核者权限查询）；切换独立仓库 Pages 来源到 GitHub Actions，并验证回滚占位页的方法。不要把模板复制到正式站仓库，也不要把未经审查的分支作为发布代码来源。
 
+### 源仓库凭据准备
+
+建议为预览发布单独创建仅选择 `ganmayou2333/hsr-knowledge-base` 的细粒度令牌，设置失效时间，并从只读权限开始验证：
+
+| 仓库权限 | 用途 |
+|---|---|
+| Actions：Read | 查询工作流及运行、列出和下载构建产物 |
+| Pull requests：Read | 查询 PR 和审核记录 |
+| Metadata：Read | 查询仓库元信息与协作者权限 |
+
+这些是依据 GitHub 的[细粒度令牌 REST 权限表](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)对当前调用整理出的候选权限，不等于已用新令牌完成实测。必须在 #41 联调中验证内部与外部 PR、下载产物以及审核者权限查询；未知权限或查询失败不能视为批准。不要将目前登录 `gh` 使用的宽权限令牌作为此 secret，也不要把令牌写入仓库、日志或聊天。
+
+完成令牌创建后，可在可信终端交互式运行 `gh secret set SOURCE_READ_TOKEN --repo ganmayou2333/hsr-knowledge-base-preview`，按提示输入令牌；无需把令牌写在命令参数中。轮换时重新设置该 secret 并撤销旧令牌，随后用可信流程验证读取和失败行为。创建 secret 本身不会启用或发布工作流。
+
 ## 已有组件
 
 - `wiki-quality.yml` 构建 Wiki 并生成预览包；包内内容仍是不可信数据。
