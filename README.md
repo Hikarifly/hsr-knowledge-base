@@ -93,9 +93,9 @@
 | [数据来源.md](数据来源.md) | 数据来源、覆盖范围与版权说明 |
 | [遗器规则.md](遗器规则.md) | 遗器规则说明 |
 | [docs/README.md](docs/README.md) | **文档总入口**：五区导航 + docs 全量索引（两跳可达） |
-| [GLOSSARY.md](GLOSSARY.md) | 术语表（34 条，中英对照 + 一句定义 + 易混点） |
-| [docs/adr/README.md](docs/adr/README.md) | ADR 索引与 `D-*` → ADR 全量映射（17 条主题 / 77 条决策） |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | 长线计划：四条主线 + 里程碑 + 质量闸门（含主线 E「事实正确性」） |
+| [GLOSSARY.md](GLOSSARY.md) | 术语表（中英对照 + 一句定义 + 易混点） |
+| [docs/adr/README.md](docs/adr/README.md) | ADR 索引与 `D-*` → ADR 全量映射（规模与覆盖情况见索引） |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | 长线计划：五条主线 + 里程碑 + 质量闸门（含主线 E「事实正确性」） |
 | [SRR图包来源.md](SRR图包来源.md) | SRR 全量图包来源说明 |
 | [update.md](update.md) | 历次更新日志 |
 | [待办清单.md](待办清单.md) | 历史快照（2026-08-28，勿新增；现行台账见 docs/待补充清单.md） |

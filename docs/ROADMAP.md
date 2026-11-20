@@ -47,7 +47,7 @@
 
 ### 主线 C：文档体系收敛
 
-已完成：`GLOSSARY.md`、`docs/adr/`（主题聚合 + D→ADR 映射，17 条 ADR / 78 条 D 号）、`docs/metrics.md` + `verify_site[16]`、`update.md` 分卷（`docs/log/`）。**`docs/backlog/` 与 `docs/archive/` 按 D-075 缓建**（「内容没写好就先动结构」被否决），等内容线稳定后再评估。
+已完成：`GLOSSARY.md`、`docs/adr/`（主题聚合 + D→ADR 映射，规模与覆盖情况见 [ADR 索引](adr/README.md)）、`docs/metrics.md` + `verify_site[16]`、`update.md` 分卷（`docs/log/`）。**`docs/backlog/` 与 `docs/archive/` 按 D-075 缓建**（「内容没写好就先动结构」被否决），等内容线稳定后再评估。
 后续只剩**维护**：
 
 | 动作 | 频率 |
