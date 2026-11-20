@@ -2,6 +2,7 @@
 import json
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -25,6 +26,10 @@ class PreviewCatalogTests(unittest.TestCase):
         self.site = self.root / 'site'; self.site.mkdir()
         (self.site / 'index.html').write_text('<script>untrusted()</script>', encoding='utf-8')
         self.states = {1: 'open', 2: 'open', 3: 'closed', 4: 'stale'}
+        review_patch = patch('tools.preview_catalog.snapshot', side_effect=lambda repo, number: {
+            'pr': number, 'head': HEAD, 'approved': False, 'reviews': [], 'captured_at': int(time.time())})
+        review_patch.start()
+        self.addCleanup(review_patch.stop)
         for number in self.states:
             build_bundle(self.site, self.bundles / str(number), repo='owner/repo', pr=number, head=HEAD, base=BASE, run=number + 10)
 
@@ -48,6 +53,9 @@ class PreviewCatalogTests(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in (output / 'previews').iterdir()), ['1', '2'])
         self.assertFalse((output / 'previews' / '1' / 'unused.html').exists())
         self.assertEqual((output / 'index.html').read_text(), 'trusted')
+        review = json.loads((output / 'previews' / '1' / 'review.json').read_text())
+        self.assertFalse(review['approved'])
+        self.assertEqual(review['repo'], 'owner/repo')
         self.assertTrue(all(p.suffix == '.json' for p in (output / 'previews').rglob('*') if p.is_file()))
 
     def test_corrupted_object_or_missing_api_does_not_create_output(self):
@@ -78,6 +86,11 @@ class PreviewCatalogTests(unittest.TestCase):
         output = self.root / 'out'; output.mkdir(); (output / 'keep').write_text('keep')
         with self.assertRaises(InvalidPreviewArtifact): assemble('owner/repo', self.bundles, self.shell, output)
         self.assertEqual((output / 'keep').read_text(), 'keep')
+
+    def test_review_service_failure_leaves_preview_without_approval(self):
+        with patch('tools.preview_catalog.gh_api', side_effect=self.api), patch('tools.preview_catalog.snapshot', side_effect=subprocess.CalledProcessError(1, 'gh')):
+            assemble('owner/repo', self.bundles, self.shell, self.root / 'out')
+        self.assertFalse((self.root / 'out' / 'previews' / '1' / 'review.json').exists())
 
 
 if __name__ == '__main__': unittest.main()

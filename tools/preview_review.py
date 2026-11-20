@@ -7,12 +7,33 @@ import json
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 REVIEW_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
 WRITE_PERMISSIONS = {"admin", "maintain", "write"}
+
+
+def review_evidence(reviews):
+    """Canonical public review fields for comparison with the live API."""
+    if not isinstance(reviews, list) or len(reviews) > 1000:
+        raise ValueError('Invalid review list')
+    evidence = []
+    ids = set()
+    for review in reviews:
+        user = review.get('user') or {}
+        number = review.get('id')
+        fields = [review.get('state'), user.get('login'), user.get('type'),
+                  review.get('commit_id'), review.get('submitted_at')]
+        if (type(number) is not int or number < 1 or number in ids
+                or fields[0] not in REVIEW_STATES | {'COMMENTED', 'PENDING'}
+                or any(value is not None and (not isinstance(value, str) or len(value) > 255) for value in fields)):
+            raise ValueError('Invalid review evidence')
+        ids.add(number)
+        evidence.append([number, *fields])
+    return sorted(evidence, key=lambda item: item[0])
 
 
 def approved_for_head(pr, reviews, permissions):
@@ -85,10 +106,17 @@ def snapshot(repo, number):
     same_snapshot = all(pr.get(key) == current.get(key) for key in ("state", "updated_at"))
     same_snapshot = same_snapshot and pr.get("head", {}).get("sha") == current.get("head", {}).get("sha")
     same_snapshot = same_snapshot and pages == gh_api(base + "/reviews?per_page=100", paginate=True)
+    try:
+        evidence = review_evidence(reviews)
+    except (ValueError, TypeError, AttributeError):
+        evidence = []
+        same_snapshot = False
     return {
         "pr": number,
         "head": current.get("head", {}).get("sha"),
         "approved": same_snapshot and approved_for_head(pr, reviews, permissions),
+        "reviews": evidence,
+        "captured_at": int(time.time()),
     }
 
 

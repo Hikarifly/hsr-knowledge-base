@@ -3,7 +3,7 @@ import copy
 import unittest
 from unittest.mock import patch
 
-from tools.preview_review import approved_for_head, snapshot
+from tools.preview_review import approved_for_head, review_evidence, snapshot
 
 HEAD = "a" * 40
 PR = {"state": "open", "head": {"sha": HEAD}, "user": {"login": "Author"}, "updated_at": "2026-01-01T00:00:00Z"}
@@ -54,6 +54,11 @@ class PreviewReviewTests(unittest.TestCase):
         responses = [PR, [[review()]], subprocess.CalledProcessError(1, "gh"), PR, [[review()]]]
         with patch("tools.preview_review.gh_api", side_effect=responses):
             self.assertFalse(snapshot("owner/repo", 1)["approved"])
+
+    def test_review_evidence_is_ordered_and_rejects_duplicate_ids(self):
+        self.assertEqual([item[0] for item in review_evidence([review(number=2), review(number=1)])], [1, 2])
+        with self.assertRaises(ValueError):
+            review_evidence([review(number=1), review(number=1)])
 
 
 if __name__ == "__main__":

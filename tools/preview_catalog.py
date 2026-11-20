@@ -18,7 +18,7 @@ from pathlib import Path
 
 from tools.preview_artifact import MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES, InvalidPreviewArtifact, archive_path
 from tools.preview_bundle import safe_json
-from tools.preview_review import REPO_PATTERN, gh_api
+from tools.preview_review import REPO_PATTERN, gh_api, snapshot
 
 SHA = re.compile(r'^[0-9a-f]{40}$')
 DIGEST = re.compile(r'^[0-9a-f]{64}$')
@@ -130,6 +130,16 @@ def assemble(repo, bundles, shell, destination):
         # Refuse to publish if a PR or run changed during the potentially long copy.
         if not all(metadata(repo, number, manifest) for number, manifest in included):
             raise InvalidPreviewArtifact('A preview became stale during assembly')
+        for number, manifest in included:
+            try:
+                review = snapshot(repo, number)
+                if review['pr'] != number or review['head'] != manifest['head']:
+                    raise ValueError('Review snapshot does not match preview')
+                review['repo'] = repo
+                (staged / 'previews' / str(number) / 'review.json').write_text(safe_json(review), encoding='ascii')
+            except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError):
+                # Failure to verify approval must never become an approval.
+                pass
         if destination.exists() or destination.is_symlink():
             raise InvalidPreviewArtifact('Destination already exists')
         os.rename(staged, destination)

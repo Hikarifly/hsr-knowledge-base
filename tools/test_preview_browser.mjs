@@ -24,11 +24,15 @@ parent.postMessage({type:'review:approved'}, '*');
 </script></body></html>`);
 const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, files};
 let canaries = 0, stale = false, delayNextPr = false;
+let reviewState = 'APPROVED';
+const review = {id: 1, state: 'APPROVED', user: {login:'Reviewer',type:'User'}, commit_id:head, submitted_at:'2026-01-01T00:00:00Z'};
+let captured = Math.floor(Date.now() / 1000);
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/canary') { canaries++; res.writeHead(204).end(); return; }
     if (url.pathname === '/previews/37/manifest.json') { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify(manifest)); return; }
+    if (url.pathname === '/previews/37/review.json') { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify({repo:manifest.repo,pr:37,head,approved:true,captured_at:captured,reviews:[[1,'APPROVED','Reviewer','User',head,review.submitted_at]]})); return; }
     const match = /^\/previews\/37\/objects\/([0-9a-f]{64})\.json$/.exec(url.pathname);
     if (match && objects.has(match[1])) { res.setHeader('Content-Type','application/json'); res.end(objects.get(match[1])); return; }
     const names = {'/':'index.html', '/shell.js':'shell.js', '/frame.js':'frame.js', '/shell.css':'shell.css'};
@@ -70,7 +74,8 @@ try {
     const m=JSON.parse(event.data);
     if (m.id && pending.has(m.id)) { const p=pending.get(m.id); pending.delete(m.id); m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result); }
     if (m.method === 'Fetch.requestPaused') {
-      const data = m.params.request.url.includes('/actions/runs/')
+      const data = m.params.request.url.includes('/reviews?') ? [{...review,state:reviewState}]
+        : m.params.request.url.includes('/actions/runs/')
         ? {event:'pull_request', conclusion:'success',head_sha:head,path:'.github/workflows/wiki-quality.yml',pull_requests:[{number:37,head:{sha:head},base:{sha:base}}]}
         : {state:'open',head:{sha:stale ? 'c'.repeat(40) : head},base:{sha:base}};
       const delay = !m.params.request.url.includes('/actions/runs/') && delayNextPr ? 800 : 0;
@@ -100,7 +105,27 @@ try {
   await wait(1500);
   events = await evaluate('window.testEvents || []');
   if (!events.some(e => e.type === 'test:csp' && e.directive === 'frame-src' && e.blocked?.endsWith('/canary'))) throw new Error('No blocked frame navigation was observed');
-  if (outer.review !== '未经人工审查' || !outer.notice.includes('非官方') || !outer.visible || canaries) throw new Error('Preview escaped its notice or made a network request');
+  if (!outer.notice.includes('非官方') || !outer.visible || canaries) throw new Error('Preview escaped its notice or made a network request');
+  let approved = false;
+  for (let i=0;i<100;i++) {
+    await wait(100);
+    if (await evaluate("document.querySelector('#review-label').textContent === '已有有效人工批准'")) { approved = true; break; }
+  }
+  if (!approved) throw new Error('Current authorized review was not shown');
+  reviewState = 'DISMISSED';
+  await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  let unreviewed = false;
+  for (let i=0;i<100;i++) {
+    await wait(100);
+    if (await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) { unreviewed = true; break; }
+  }
+  await wait(500);
+  if (!unreviewed || !await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Dismissed approval remained visible');
+  reviewState = 'APPROVED';
+  captured = Math.floor(Date.now() / 1000) - 61;
+  await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await wait(500);
+  if (!await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Expired approval remained visible');
   delayNextPr = true;
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await wait(100);
