@@ -89,25 +89,41 @@ try {
     return null;
   })()`);
   if (!result) throw new Error('No body-only summary search result was found');
+  // Exercise browser keyboard input and focus order rather than synthetic DOM events.
   await evaluate(`(() => {
     const box = document.querySelector('#search');
-    box.focus();
+    box.value = '';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    document.activeElement.blur();
+  })()`);
+  async function pressKey(key, code, windowsVirtualKeyCode) {
+    const params = { key, code, windowsVirtualKeyCode };
+    await cdp('Input.dispatchKeyEvent', { type: 'keyDown', ...params });
+    await cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...params });
+  }
+  let focused = false;
+  for (let i = 0; i < 100; i++) {
+    await pressKey('Tab', 'Tab', 9);
+    if (await evaluate(`document.activeElement === document.querySelector('#search')`)) { focused = true; break; }
+  }
+  if (!focused) throw new Error('Search input is not reachable with Tab');
+  await cdp('Input.insertText', { text: result.needle });
+  const index = await evaluate(`(() => {
+    const box = document.querySelector('#search');
     box.blur();
     box.focus();
     if (box.getAttribute('aria-expanded') !== 'true') throw new Error('Results not announced after refocusing');
+    return [...document.querySelectorAll('#results li')].findIndex(el => el.querySelector('a')?.textContent === ${JSON.stringify(result.title)});
   })()`);
-  await evaluate(`(() => {
-    const box = document.querySelector('#search');
-    box.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true}));
-    if (!box.getAttribute('aria-activedescendant')) throw new Error('Keyboard selection not announced');
-  })()`);
+  if (index < 0) throw new Error('Body-only result disappeared after keyboard input');
+  for (let i = 0; i <= index; i++) await pressKey('ArrowDown', 'ArrowDown', 40);
   const selectedHref = await evaluate(`(() => {
     const box = document.querySelector('#search');
     const selected = document.getElementById(box.getAttribute('aria-activedescendant'));
-    const href = selected.querySelector('a').href;
-    box.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
-    return href;
+    if (!selected || selected.querySelector('a')?.textContent !== ${JSON.stringify(result.title)}) throw new Error('Keyboard selected the wrong result');
+    return selected.querySelector('a').href;
   })()`);
+  await pressKey('Enter', 'Enter', 13);
   for (let i = 0; i < 100; i++) {
     await wait(100);
     if (await evaluate(`location.href === ${JSON.stringify(selectedHref)}`)) break;
