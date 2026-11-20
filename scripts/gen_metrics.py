@@ -258,7 +258,7 @@ def collect():
         None if any(c is None for c in commits)
         else int(round(sum(commits) / len(commits) / 10.0) * 10)
     )
-    # 入库与工作区的差额（应 == gitignore 的 */quest/剧情文本/ 个数）
+    # 工作区与 HEAD 的数量差，不代表未入库文件数。
     m["mirror_gap"] = all(m.get("md_commit_" + l) is not None for l in MIRROR_DIRS) and \
         (m.get("md_worktree_en_us") - m.get("md_commit_en_us"))
     return m
@@ -282,10 +282,10 @@ def render(m, now):
     a("")
     a("| 指标 | 口径 | 实测命令 |")
     a("|---|---|---|")
-    a("| **入库数** | `git ls-tree` 口径：**版本库里真实存在**的文件。CI 与线上站点的实际内容就是这一套。 | `git ls-tree -r --name-only HEAD -- <lang> \\| grep -c '\\.md$'` |")
-    a("| **工作区数** | 本地磁盘实际文件数，**含 gitignore 的 `*/quest/剧情文本/`**（D-020/D-025 合规撤下、不入库）。 | `find <lang> -name '*.md' \\| wc -l` |")
+    a("| **入库数** | `git ls-tree` 口径：生成时 `HEAD` 提交中的文件。CI 与线上内容取决于各自检出和部署的提交。 | `git ls-tree -r --name-only HEAD -- <lang> \\| grep -c '\\.md$'` |")
+    a("| **工作区数** | 本地磁盘实际文件数，**含实际存在的 gitignore 文件，例如 `*/quest/剧情文本/`**（D-020/D-025 合规撤下、不入库）。 | `find <lang> -name '*.md' \\| wc -l` |")
     a("| **详情文件** | 含 `> 实体ID：` 元信息，且排除「文件名 == 上级目录名」的索引 / 分组文件与类别主索引（D-048 / D-061 / D-067）。 | `cd zh_cn && python ../scripts/verify_fields.py` |")
-    a("| **页面数** | `zh_cn/` 每个 `.md` 一页的静态站产物数（= `zh_cn` **工作区** `.md` 数）。 | `python wiki/build_wiki.py` |")
+    a("| **页面数** | `zh_cn/` 每个 `.md` 一页；构建产物反映构建时工作区，不一定是生成统计时的工作区。 | `python wiki/build_wiki.py` |")
     a("")
     a("> **对外报数一律用「入库数」**（D-068）：文档若写工作区数，必须在括注中写明口径与差值来源，")
     a("> 否则会出现「文档比线上多 167 个文件」的失真。")
@@ -296,9 +296,9 @@ def render(m, now):
     a("")
     a("| 指标 | 值 | 说明 |")
     a("|---|---|---|")
-    a("| `zh_cn` 页面数（静态站） | **%s** | `wiki/data/stats.js` 的 `pages`（= `zh_cn` 工作区 `.md` 数 %s） |"
+    a("| `zh_cn` 页面数（静态站） | **%s** | `wiki/data/stats.js` 的 `pages`（构建时快照）；统计时工作区 `.md` 数 %s |"
       % (fmt(m["pages"]), fmt(m["md_worktree_zh_cn"])))
-    a("| `zh_cn` 入库 `.md` | **%s** | 工作区 %s，差额 %s = gitignore 的 `*/quest/剧情文本/` |"
+    a("| `zh_cn` 入库 `.md` | **%s** | 工作区 %s，与 HEAD 数量差 %s；原因需逐项核对 |"
       % (fmt(m["md_commit_zh_cn"]), fmt(m["md_worktree_zh_cn"]),
          fmt(None if m["md_worktree_zh_cn"] is None or m["md_commit_zh_cn"] is None
              else m["md_worktree_zh_cn"] - m["md_commit_zh_cn"])))
@@ -312,13 +312,13 @@ def render(m, now):
     a("")
     a("## 三、五语规模（入库 / 工作区）")
     a("")
-    a("| 语言目录 | 入库 `.md` | 工作区 `.md` | 差额（不入库） |")
+    a("| 语言目录 | 入库 `.md` | 工作区 `.md` | 数量差（工作区 − HEAD） |")
     a("|---|---|---|---|")
     a("| `zh_cn/` | %s | %s | %s |" % _row(m, "zh_cn"))
     for lang in MIRROR_DIRS:
         a("| `%s/` | %s | %s | %s |" % ((lang,) + _row(m, lang)))
     a("")
-    a("> 差额全部来自 `*/quest/剧情文本/`（D-020 合规撤下文字表达、D-025 `git rm --cached`）。")
+    a("> 数量差是两个计数之差，并非未入库文件数；忽略或未跟踪文件、工作区删除等均可能影响差值。`*/quest/剧情文本/` 的处理见 D-020、D-025。")
     a("> 镜像四语入库均值 %s，十位取整 **各约 %s**（README 括注口径）。"
       % (_mirror_avg_text(m), fmt(m["mirror_commit_avg_round10"])))
     a("")
