@@ -7,6 +7,7 @@
 - `wiki-quality.yml` 构建 Wiki 并生成预览包；包内内容仍是不可信数据。
 - `wiki-trusted-data.yml` 使用目标分支的扫描程序检查 PR 数据，在检查前后核对 PR 仍处于打开状态且提交与目标版本未变。工作流需先进入默认分支才能响应事件；草稿 PR 中的文件不会自动启用。该检查只覆盖数据规则，不证明 PR 提供的构建脚本或产物可信。
 - `tools/stage_preview.py` 校验并转换单个 PR 的预览包，并要求相同 PR、提交和目标版本的独立数据检查通过；`tools/preview_catalog.py` 重新生成多 PR 目录，并重新核验该检查。二者都不部署网站。
+- `python -m tools.reconcile_previews OWNER/REPO preview_shell 输出目录` 可发现当前 PR 和最新检查，暂存合格产物并生成新目录；输出目录必须不存在。它不切换或部署线上站点，且需要先启用独立检查才能与真实 GitHub 端到端联调。
 - `tools/preview_review_server.py` 可提供预览和短期审核状态；生产环境需要独立 HTTPS 托管、只读 GitHub 凭据和访问限流。它不负责部署或清理。
 
 独立检查工作流会从外部 PR 检出内容用于数据扫描，因此显式启用了 checkout 的 `allow-unsafe-pr-checkout`。该任务不得运行 PR 提供的代码、安装其依赖、使用其工作流、缓存或提供发布凭据；后续修改必须保留这些边界。检查器和基线必须来自可信目标分支。
