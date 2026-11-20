@@ -72,6 +72,28 @@ jobs:
           retention-days: 7
       - name: Download preview input for round-trip verification
         if: github.event_name == 'pull_request'
+        id: download_preview_first
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: wiki-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/preview-roundtrip
+      - name: Wait before retrying preview download
+        if: steps.download_preview_first.outcome == 'failure'
+        run: sleep 5
+      - name: Retry preview download
+        if: steps.download_preview_first.outcome == 'failure'
+        id: download_preview_second
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: wiki-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/preview-roundtrip
+      - name: Wait before final preview download
+        if: steps.download_preview_second.outcome == 'failure'
+        run: sleep 10
+      - name: Final preview download
+        if: steps.download_preview_second.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           name: wiki-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
