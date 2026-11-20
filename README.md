@@ -35,7 +35,7 @@
 
 > 以上 `character/`~`stages/` 均位于 `zh_cn/` 下（`zh_cn/character/` 等）；`wiki/`、`docs/`、`scripts/`、`compliance-assessment/` 位于仓库根。索引层级统一为：主索引 → 分类 / 命途索引 → 评级索引（星级） → 详情。规模为详情文件数（不含索引与分组文件）。
 > **目录规范 / 入库边界 / 清理规则**：见 **[docs/仓库结构.md](docs/仓库结构.md)**。
-> **口径说明**：`zh_cn/` 合计行为 `zh_cn/` 下**全部 `.md` 文件数**（含索引，**实测 2026-11-15 = 6,685**）；各分类行为**详情文件数**（= 含 `> 实体ID：` 元信息、且排除索引与分组文件，**实测 2026-11-15**），故两者不直接相加。`wiki/` 页数与合计行一致（每 `.md` 一页，实测 6,685 页，死链 0）。
+> **口径说明**：`zh_cn/` 合计行为 `zh_cn/` 下**全部 `.md` 文件数**（含索引，**本机快照 2026-11-15 = 6,685，含未入库文件**）；各分类行为**详情文件数**（= 含 `> 实体ID：` 元信息、且排除索引与分组文件，**实测 2026-11-15**），故两者不直接相加。`wiki/` 页数取决于构建时工作区，每个 `.md` 一页；干净检出与含忽略文件的本机快照不同，见[构建验证](docs/wiki-build.md)。
 > **唯一真值表**：[docs/metrics.md](docs/metrics.md)（由 `python scripts/gen_metrics.py` 生成，含入库 / 工作区两套口径与全部命令）。`tools/verify_site.py` 的 `[16]` 项会校验本节数字与该表一致，改数字须重跑生成器。
 > [1] `quest/` `worldview/` `货币战争/` `rules/` 为**文档型条目**（索引 / 规范 / 世界观叙述），不含 `> 实体ID：` 元信息，故按「详情文件」口径计为 **0**；其**实际文件数**依次为 173 / 8 / 7 / 5（含索引）。
 
@@ -60,6 +60,7 @@
 - 站点：https://ganmayou2333.github.io/hsr-knowledge-base/ （GitHub Pages 自动构建，push main 即更新）
 - 本地预览：`python wiki/build_wiki.py` 后打开 `wiki/index.html`
 - 说明：图标在 CI 构建时从 StarRailRes 拉取，**不随仓库分发**；无图标实体显示占位符。
+- 干净检出构建、图标来源和复现限制：见[构建验证](docs/wiki-build.md)。
 
 ---
 
@@ -116,7 +117,7 @@
 - **术语与格式规范**：`格式规范与要求.md`（v1.17）定义目录、命名、元信息、模板、双链与 Token 规则
 - **多语言对齐**：`zh_cn` 基准 + `en_us / zh_tw / ja_jp / ko_kr` 四语言镜像
 - **剧情结构官方化**：以 BWiki pageid 链还原 4.6 主线 5 个子任务链
-- **校验工具链**：`verify_fields`（字段）/ `verify_links`（双链）/ `verify_site`（站点回归，[1]–[16]）/ `verify_docs`（文档结构）/ `gen_metrics`（规模真值表 `docs/metrics.md`），以及 6,685 页静态 Wiki 生成器（死链 0）
+- **校验工具链**：`verify_fields`（字段）/ `verify_links`（双链）/ `verify_site`（站点回归，[1]–[16]）/ `verify_docs`（文档结构）/ `gen_metrics`（规模真值表 `docs/metrics.md`），以及静态 Wiki 生成器；页面数随构建输入变化。
 - **可追溯来源**：每份详情文件头部标注数据来源、数据版本与实体ID
 
 ---
