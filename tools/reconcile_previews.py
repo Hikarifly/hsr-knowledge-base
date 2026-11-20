@@ -19,6 +19,10 @@ MAX_PRS = 1000
 MAX_RUNS = 1000
 
 
+class MissingRunAssociation(InvalidPreviewArtifact):
+    """GitHub did not supply evidence binding a run to a PR."""
+
+
 def pages_items(pages, key=None):
     if not isinstance(pages, list):
         raise InvalidPreviewArtifact('Invalid paginated response')
@@ -41,8 +45,10 @@ def latest_run(runs, number, pr, event, path):
             if run['event'] != event or run['path'] != path or run['head_sha'] != pr['head']['sha']:
                 continue
             associations = run['pull_requests']
-            if not isinstance(associations, list) or not associations:
+            if not isinstance(associations, list):
                 raise ValueError
+            if not associations:
+                raise MissingRunAssociation('Workflow run has no PR association')
             matches = [item for item in associations if item['number'] == number]
             if not matches:
                 continue
@@ -55,6 +61,8 @@ def latest_run(runs, number, pr, event, path):
             if datetime.strptime(started, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).isoformat()[:19] != started[:19]:
                 raise ValueError
             candidates.append((started, run['id'], run))
+        except MissingRunAssociation:
+            raise
         except (KeyError, TypeError, ValueError):
             raise InvalidPreviewArtifact('Invalid workflow run metadata') from None
     return max(candidates, default=(None, None, None), key=lambda item: (item[0] or '', item[1] or 0))[2]
@@ -90,8 +98,12 @@ def reconcile(repo, shell, destination):
             trusted_path = '.github/workflows/wiki-trusted-data.yml'
             build_runs = pages_items(gh_api(f'{prefix}/actions/workflows/wiki-quality.yml/runs?event=pull_request&head_sha={head}&per_page=100', paginate=True), 'workflow_runs')
             trusted_runs = pages_items(gh_api(f'{prefix}/actions/workflows/wiki-trusted-data.yml/runs?event=pull_request_target&head_sha={head}&per_page=100', paginate=True), 'workflow_runs')
-            build = latest_run(build_runs, number, pr, 'pull_request', build_path)
-            trusted = latest_run(trusted_runs, number, pr, 'pull_request_target', trusted_path)
+            try:
+                build = latest_run(build_runs, number, pr, 'pull_request', build_path)
+                trusted = latest_run(trusted_runs, number, pr, 'pull_request_target', trusted_path)
+            except MissingRunAssociation:
+                # Do not infer PR identity from a commit SHA; other PRs may proceed.
+                continue
             if (not build or not trusted or build.get('status') != 'completed' or build.get('conclusion') != 'success'
                     or trusted.get('status') != 'completed' or trusted.get('conclusion') != 'success'):
                 continue

@@ -70,15 +70,56 @@ class ReconcileTests(unittest.TestCase):
             self.assertEqual(self.run_reconcile(f'out-{status}'), [])
         self.assertEqual(self.staged, [])
 
-    def test_missing_association_or_api_failure_aborts_without_output(self):
+    def test_missing_association_is_omitted_but_api_failure_aborts(self):
         self.builds[0]['pull_requests'] = []
-        with self.assertRaises(InvalidPreviewArtifact):
-            self.run_reconcile()
-        self.assertFalse((self.root / 'out').exists())
+        self.assertEqual(self.run_reconcile(), [])
+        self.assertEqual(self.staged, [])
         with patch('tools.reconcile_previews.gh_api', side_effect=subprocess.CalledProcessError(1, 'gh')):
             with self.assertRaises(subprocess.CalledProcessError):
-                reconcile('owner/repo', self.root, self.root / 'out')
-        self.assertFalse((self.root / 'out').exists())
+                reconcile('owner/repo', self.root, self.root / 'api-failure')
+        self.assertFalse((self.root / 'api-failure').exists())
+
+    def test_fork_run_without_github_pr_association_fails_closed(self):
+        # GitHub can return an empty pull_requests list for fork runs. Without
+        # trustworthy evidence binding the run to a PR, never infer the link.
+        external = copy.deepcopy(PR)
+        external['head']['repo']['id'] = 2
+        self.builds[0]['pull_requests'] = []
+        def api(path, paginate=False):
+            if '/pulls?state=' in path:
+                return [[external]]
+            return self.api(path, paginate)
+        with patch('tools.reconcile_previews.gh_api', side_effect=api), \
+                patch('tools.reconcile_previews.stage', side_effect=self.stage), \
+                patch('tools.reconcile_previews.assemble', side_effect=self.assemble):
+            self.assertEqual(reconcile('owner/repo', self.root, self.root / 'out'), [])
+        self.assertEqual(self.staged, [])
+
+    def test_unassociated_fork_does_not_block_other_preview(self):
+        external = copy.deepcopy(PR)
+        external['head']['repo']['id'] = 2
+        other = copy.deepcopy(PR)
+        other['number'] = 8
+        other['head']['sha'] = 'c' * 40
+        association = copy.deepcopy(other)
+        for key in ('state',):
+            association.pop(key)
+        def api(path, paginate=False):
+            if '/pulls?state=' in path:
+                return [[external, other]]
+            if '/runs?' in path:
+                if 'head_sha=' + HEAD in path:
+                    return [{'workflow_runs': [dict(BUILD, pull_requests=[])]}]
+                run = copy.deepcopy(TRUSTED if 'wiki-trusted-data.yml' in path else BUILD)
+                run.update(id=21 if run['event'] == 'pull_request_target' else 20,
+                           head_sha='c' * 40, pull_requests=[association])
+                return [{'workflow_runs': [run]}]
+            return self.api(path, paginate)
+        with patch('tools.reconcile_previews.gh_api', side_effect=api), \
+                patch('tools.reconcile_previews.stage', side_effect=self.stage), \
+                patch('tools.reconcile_previews.assemble', side_effect=self.assemble):
+            self.assertEqual(reconcile('owner/repo', self.root, self.root / 'out'), [8])
+        self.assertEqual(self.staged, [(8, 20, 21)])
 
     def test_old_base_trusted_check_is_not_selected(self):
         self.trusted[0]['pull_requests'][0]['base']['sha'] = 'c' * 40
