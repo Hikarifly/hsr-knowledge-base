@@ -1,9 +1,4 @@
 {
   "description": "干净检出中的已知数据区失效链接；修复后从此基线删除。",
-  "dead_links": [
-    ["zh_cn/enemies/首领/堕神之血•亚婆离.md", "zh_cn/quest/剧情文本/第五章_月升之前与兽共舞|第五章·月升之前，与兽共舞"],
-    ["zh_cn/enemies/首领/狂兽的胚芽.md", "zh_cn/quest/剧情文本/第五章_月升之前与兽共舞|第五章·月升之前，与兽共舞"],
-    ["zh_cn/worldview/势力与组织.md", "zh_cn/quest/剧情文本/冒险任务/树海归于谧宁|树海归于谧宁"],
-    ["zh_tw/worldview/势力与组织.md", "zh_cn/quest/剧情文本/冒险任务/树海归于谧宁|树海归于谧宁"]
-  ]
+  "dead_links": []
 }
