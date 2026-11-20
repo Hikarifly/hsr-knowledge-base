@@ -51,6 +51,7 @@ jobs:
           node tools/test_wiki_browser.mjs
           node tools/test_preview_browser.mjs
           node tools/test_preview_browser.mjs --service
+          node tools/test_preview_browser.mjs --service --service-initial-failure
       - name: Check real Wiki in preview viewer
         if: github.event_name == 'pull_request'
         env:

@@ -180,6 +180,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
             content = candidate.read_bytes()
             if len(content) > maximum:
                 raise OSError('Preview file changed during read')
+            if mime.startswith('text/html'):
+                if content.count(b'</head>') != 1:
+                    raise OSError('Invalid trusted preview shell')
+                content = content.replace(b'</head>', b'<meta name="preview-service" content="enabled"></head>', 1)
             self.send_response(200)
             self.send_header('Content-Type', mime)
             self.send_header('Cache-Control', 'no-store, max-age=0')

@@ -8,9 +8,9 @@
   const reviewLabel = document.getElementById('review-label');
   const link = document.getElementById('pr-link');
   let frame = document.getElementById('preview');
-  let manifest, bridge, verified = false, currentPage = 'index.html';
+  let manifest, bridge, verified = false, hasPage = false, currentPage = 'index.html';
   let requests = 0, activeReads = 0, bytesRead = 0, generation = 0, verification = 0, reviewCheck = 0;
-  let liveServiceSeen = false, liveExpiry = 0;
+  let liveServiceSeen = document.querySelector('meta[name="preview-service"][content="enabled"]') !== null, liveExpiry = 0;
   const waiters = [];
   const objectCache = new Map();
   const mime = {js: 'text/javascript', css: 'text/css', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp'};
@@ -68,6 +68,7 @@
         showLiveReview(proof, check);
         return;
       }
+      if (liveServiceSeen) throw new Error('Preview service unavailable');
       const expires = proof.captured_at * 1000 + 60000;
       if (proof.repo !== REPO || proof.pr !== Number(number) || proof.head !== manifest.head ||
           proof.approved !== true || !Number.isSafeInteger(proof.captured_at) ||
@@ -213,6 +214,7 @@
       next.dataset.html = html;
       frame.replaceWith(next);
       frame = next;
+      hasPage = true;
     } catch { if (navigation === generation) fail('预览页面无法读取或校验失败。'); }
   }
 
@@ -247,10 +249,13 @@
       if (!response.ok) throw new Error('Missing trusted bridge');
       const source = await response.text();
       bridge = btoa(String.fromCharCode(...new TextEncoder().encode(source)));
-      if (await verify()) await navigate('index.html');
-      setInterval(verify, 90000);
+      const verifyAndLoad = async () => {
+        if (await verify() && !hasPage) await navigate('index.html');
+      };
+      await verifyAndLoad();
+      setInterval(verifyAndLoad, 90000);
       setInterval(refreshReview, 15000);
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) verify(); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) verifyAndLoad(); });
     } catch { fail('预览尚未生成或数据无效。'); }
   }
   start();

@@ -56,7 +56,7 @@ let service, serviceRoot;
 let origin = `http://127.0.0.1:${server.address().port}`;
 if (useService) {
   serviceRoot = await mkdtemp(path.join(tmpdir(), 'hsr-preview-service-'));
-  await writeFile(path.join(serviceRoot,'state.txt'),'approved');
+  await writeFile(path.join(serviceRoot,'state.txt'), process.argv.includes('--service-initial-failure') ? 'unavailable' : 'approved');
   for (const name of ['index.html','shell.js','frame.js','shell.css']) await copyFile(path.join('preview_shell',name), path.join(serviceRoot,name));
   const dest = path.join(serviceRoot,'previews','37');
   await mkdir(path.join(dest,'objects'),{recursive:true});
@@ -134,6 +134,17 @@ try {
     return reply.result.value;
   };
   await cdp('Page.navigate',{url:`${origin}/?pr=37`});
+  if (process.argv.includes('--service-initial-failure')) {
+    let unavailable = false;
+    for (let i=0;i<100;i++) {
+      await wait(100);
+      if (await evaluate("document.querySelector('#status').textContent.includes('暂不可用')")) { unavailable = true; break; }
+    }
+    if (!unavailable || !await evaluate("document.querySelector('#preview').hidden")) throw new Error('Initial service failure exposed preview');
+    if (githubRequests) throw new Error('Initial service failure fell back to GitHub');
+    await writeFile(path.join(serviceRoot,'state.txt'),'approved');
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  }
   let events = [];
   for (let i=0;i<100;i++) {
     await wait(100);

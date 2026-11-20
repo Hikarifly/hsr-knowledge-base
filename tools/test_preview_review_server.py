@@ -79,7 +79,7 @@ class ReviewServerTests(unittest.TestCase):
     def test_static_viewer_serves_only_allowed_paths_and_dynamic_review(self):
         with tempfile.TemporaryDirectory() as directory:
             site = Path(directory)
-            (site / 'index.html').write_text('<h1>trusted</h1>', encoding='utf-8')
+            (site / 'index.html').write_text('<head></head><h1>trusted</h1>', encoding='utf-8')
             (site / 'shell.js').write_text('trusted', encoding='utf-8')
             bundle = site / 'previews' / '37'
             (bundle / 'objects').mkdir(parents=True)
@@ -92,7 +92,7 @@ class ReviewServerTests(unittest.TestCase):
             self.server.site = site
             self.server.validator = lambda repo, number, manifest: True
             with urllib.request.urlopen(self.base + '/?pr=37', timeout=5) as response:
-                self.assertEqual(response.read(), b'<h1>trusted</h1>')
+                self.assertEqual(response.read(), b'<head><meta name="preview-service" content="enabled"></head><h1>trusted</h1>')
                 self.assertEqual(response.headers['Content-Security-Policy'], "frame-src 'none'")
             self.assertEqual(self.get('/previews/37/manifest.json')[0], 200)
             self.assertEqual(self.get(f'/previews/37/objects/{digest}.json')[0], 200)
