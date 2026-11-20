@@ -37,7 +37,7 @@ python wiki/build_wiki.py
 python tools/check_quality.py
 python tools/verify_site.py
 python tools/verify_docs.py
-python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview tools.test_trusted_quality -v
+python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview tools.test_trusted_quality tools.test_preview_catalog -v
 node --check wiki/assets/app.js
 node --check wiki/assets/home.js
 node --check preview_shell/shell.js
@@ -56,6 +56,8 @@ node tools/test_wiki_browser.mjs
 `python -m tools.stage_preview OWNER/REPO PR编号 运行编号 输出目录` 可将指定 PR 的检查产物转换成仅含 JSON 的新本地目录。必须从独立可信的检出运行；成功的 PR 检查并不能证明 PR 自己修改的工作流或测试可信。转换后的目录不会自动发布，也不能代替实时状态校验、清理和外部 PR 的完整安全审查。
 
 `python -I /可信检出/tools/trusted_quality.py /只读PR检出` 使用可信检出的数据检查脚本和基线检查 PR 数据。应在无发布凭据、资源受限的环境运行，且检查期间 PR 检出不可被修改；该检查器尚未接入可信发布流程，不能单独作为预览发布授权。
+
+`python -m tools.preview_catalog OWNER/REPO 预览输入目录 可信页面目录 输出目录` 能将多个已暂存预览组装到新的本地目录；已关闭或过期的 PR 不会出现在新目录中。输入按 PR 编号分目录，输出目录必须不存在。它只组装，不执行部署或定期清理；上线仍需要可信发布、状态刷新与清理触发机制。
 
 ---
 
