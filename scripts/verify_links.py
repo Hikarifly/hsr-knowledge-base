@@ -101,7 +101,7 @@ def main():
     if res['dead_data']:
         print()
         print('RESULT: FAIL 数据区死链 %d 条（要求 0）：' % res['dead_data'])
-        for f, raw in res['dead_data'][:40]:
+        for f, raw in res['dead_data_details'][:40]:
             print('  %s -> [[%s]]' % (f, raw))
         return 1
     print()

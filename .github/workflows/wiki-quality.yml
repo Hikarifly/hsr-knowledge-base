@@ -1,0 +1,38 @@
+name: Wiki quality
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build static Wiki
+        run: python wiki/build_wiki.py
+      - name: Check data and tracked-link baseline
+        run: python tools/check_quality.py
+      - name: Check generated site and documents
+        run: |
+          python tools/verify_site.py
+          python tools/verify_docs.py
+          python -m unittest tools.test_wiki_search tools.test_quality_gate -v
+      - name: Check JavaScript syntax
+        run: |
+          node --check wiki/assets/app.js
+          node --check wiki/assets/home.js
+      - name: Check browser interactions
+        env:
+          WIKI_BROWSER: /usr/bin/google-chrome
+        run: node tools/test_wiki_browser.mjs

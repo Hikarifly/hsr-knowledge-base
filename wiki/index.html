@@ -3,10 +3,18 @@
 <title>HSR 知识库 Wiki</title>
 <link rel="stylesheet" href="assets/style.css">
 </head><body>
-<div class="topbar"><button id="theme-toggle" class="theme-toggle" type="button">跟随系统</button></div>
+<div class="topbar"><span class="archive-brand">星穹铁道 · 资料档案</span><button id="theme-toggle" class="theme-toggle" type="button">跟随系统</button></div>
 <!-- Hero -->
-<h1 class="hero-title rise">崩坏：星穹铁道 · 数据知识库</h1>
-<p class="hero-sub rise">非官方整理 · 以官方本地化文本为准 · <span id="pagecount"></span> 页 · 五语言</p>
+<h1 class="hero-title rise">探索星海，查阅档案。</h1>
+<p class="hero-sub rise">《崩坏：星穹铁道》非官方知识库 · 简体中文 Wiki · <span id="pagecount"></span> 页</p>
+<section class="search-section" aria-label="搜索档案">
+<label class="search-label" for="search">从这里开始查找</label>
+<p class="search-hint">搜索标题、路径或正文开头的摘要</p>
+<input id="search" class="searchbox" role="combobox" aria-label="搜索页面标题和正文摘要" aria-expanded="false" aria-controls="results" aria-autocomplete="list" placeholder="搜索角色、物品、剧情……">
+<div id="resultmeta" class="result-meta" aria-live="polite"></div>
+<ul id="results" class="results" role="listbox"></ul>
+<noscript><p>搜索需要 JavaScript；下方分类仍可直接浏览。</p></noscript>
+</section>
 <!-- 仪表盘（W-4.6-87）：概览条 + 快速访问 + 最新收录。静态可读，JS 只填统计与最新列表 -->
 <section class="dash rise" id="dash-root" style="--i:1" aria-label="数据概览与最新收录">
   <div class="dash-meta">
@@ -24,14 +32,12 @@
   </nav>
   <h2 class="dash-h2">最新收录</h2>
   <ol id="dash-recent" class="dash-recent">
-    <li class="dash-empty">最新收录需要 JavaScript 才能显示；下方「分类导航」与搜索框不受影响，可直接使用。</li>
+    <li class="dash-empty">最新收录需要 JavaScript 才能显示；下方「分类导航」仍可直接使用。</li>
   </ol>
 </section>
-<input id="search" class="searchbox" role="combobox" aria-label="搜索页面标题" aria-expanded="false" aria-controls="results" aria-autocomplete="list" placeholder="搜索页面标题（如：真珠 / 献给明日的色彩 / 密伶之径）…">
-<div id="resultmeta" class="result-meta" aria-live="polite"></div>
-<ul id="results" class="results" role="listbox"></ul>
 <div id="deadbanner" class="dead-banner" style="display:none"></div>
 <!-- 分类 bento -->
+<div class="section-heading"><h2>浏览全部分类</h2><p>从角色到剧情，沿索引探索每一份档案。</p></div>
 <section class="cats" aria-label="分类导航">
 <a class="cat s3" data-cat="character" href="pages/character/角色.html" style="--i:0"><span class="n">角色</span><span class="c"></span></a>
 <a class="cat s3" data-cat="lightcone" href="pages/lightcone/光锥.html" style="--i:1"><span class="n">光锥</span><span class="c"></span></a>

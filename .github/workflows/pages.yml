@@ -10,7 +10,10 @@ concurrency:
   group: wiki
   cancel-in-progress: true
 jobs:
+  quality:
+    uses: ./.github/workflows/wiki-quality.yml
   build:
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

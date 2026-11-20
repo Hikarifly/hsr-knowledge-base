@@ -153,6 +153,33 @@ table thead th{position:sticky;top:var(--ui-topbar-h);z-index:1;background:var(-
   table{font-size:10.5pt}
 }
 
+/* 档案馆：检索优先的首页与可折叠的词条目录。 */
+.archive-brand{color:var(--ui-ink);font-size:15px;font-weight:700;letter-spacing:.02em}
+.topbar:has(.archive-brand){justify-content:space-between;align-items:center}
+.hero-title{font-size:clamp(2rem,5vw,3.75rem);max-width:16em;border:0;padding:clamp(28px,5vw,64px) 0 8px}
+.hero-sub{font-size:16px;line-height:1.7;margin-bottom:32px}
+.search-section{background:var(--ui-panel);padding:clamp(20px,3vw,32px);margin:0 0 48px}
+.search-label{display:block;color:var(--ui-ink);font-size:20px;font-weight:700;margin-bottom:4px}
+.search-hint{color:var(--ui-mute);font-size:14px;margin:0 0 16px}
+.search-section .searchbox{min-height:52px}
+.search-section .results{margin:0}
+.search-section .results li{padding:14px 8px}
+.result-summary{display:block;color:var(--ui-ink-2);font-size:14px;line-height:1.6;margin-top:4px;overflow-wrap:anywhere}
+.section-heading{margin:48px 0 16px}
+.section-heading h2{margin:0 0 8px;font-size:24px}
+.section-heading p{color:var(--ui-mute);margin:0}
+.page-toc{max-width:72ch;margin:24px 0;background:var(--ui-surface);padding:14px 18px}
+.page-toc summary{cursor:pointer;font-weight:700}
+.page-toc ol{columns:2;column-gap:32px;margin:12px 0 0;padding-left:22px}
+.page-toc li{break-inside:avoid;padding:3px 0}
+@media(max-width:640px){
+  .archive-brand{font-size:14px}
+  .hero-title{padding-top:28px}
+  .search-section{margin-left:-4px;margin-right:-4px}
+  .page-toc ol{columns:1}
+}
+@media print{.page-toc{display:none}}
+
 /* ===== W-4.6-85 剧情时间线（数据源 zh_cn/quest/主线任务.md · 只在剧情索引页出现） =====
    瑞士风：直角、细线、唯一强调色、8px 栅格；动效只用 transform/opacity。 */
 .timeline{margin:0 0 48px;padding:0 0 16px;border-bottom:1px solid var(--line)}

@@ -228,6 +228,40 @@ def parse_meta(md):
             body.append(line)
     return meta, "\n".join(body)
 
+
+def search_summary(body, limit=240):
+    """截取正文开头的可读文本；不将元信息或代码块当作正文。"""
+    pieces = []
+    in_code = False
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or not line or line.startswith(("#", ">", "|", "---")):
+            continue
+        line = re.sub(r"!?\[\[([^\]]+)\]\]", lambda m: m.group(1).split("|")[-1], line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"^\s*(?:[-*]\s+|\d+\.\s+)", "", line)
+        line = re.sub(r"[*_`]", "", line).strip()
+        if line:
+            pieces.append(line)
+        if sum(map(len, pieces)) >= limit:
+            break
+    return " ".join(pieces)[:limit]
+
+
+def page_toc(rendered):
+    """Use the renderer's actual heading IDs so duplicate and special headings work."""
+    headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', rendered)
+    if len(headings) < 2:
+        return ""
+    links = []
+    for anchor, label in headings:
+        label = html.unescape(re.sub(r"<[^>]*>", "", label))
+        links.append(f'<li><a href="#{esc(anchor)}">{esc(label)}</a></li>')
+    return '<nav class="page-toc" aria-label="本页目录"><details><summary>本页目录</summary><ol>' + "".join(links) + '</ol></details></nav>'
+
 # 图标映射：KB 顶层目录 → (SRR icon 子目录, 文件命名, 显示尺寸)
 ICON_CONF = {
     "character": [("avatar", "{id}.png", 96, 96), ("character", "{id}.png", 200, 280)],
@@ -556,6 +590,8 @@ def main():
             extra_head = '<noscript><style>.cp-filters{display:none}</style></noscript>'
             extra_top += character_panel_html(char_data, up)
             extra_scripts += f'<script src="{up}assets/character-panel.js" defer></script>'
+        rendered_body = md_to_html(body, depth, rel)
+        toc_html = page_toc(rendered_body)
         doc = f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)} — HSR Wiki</title>
@@ -568,8 +604,9 @@ def main():
 <h1 class="mv" style="--i:0">{esc(title)}</h1>
 {icon_html}
 {extra_top}
+{toc_html}
 <div class="prose mv" style="--i:2">
-{md_to_html(body, depth, rel)}
+{rendered_body}
 </div>
 {meta_html}
 <nav class="pager">{prev_nxt}</nav>
@@ -582,7 +619,7 @@ def main():
         outp = (PAGES / key.replace("/", os.sep)).with_suffix(".html")
         outp.parent.mkdir(parents=True, exist_ok=True)
         outp.write_text(doc, encoding="utf-8")
-        titles.append({"path": key+".html", "title": title, "category": parts[0] if len(parts)>1 else "", "lang":"zh_cn"})
+        titles.append({"path": key+".html", "title": title, "category": parts[0] if len(parts)>1 else "", "lang":"zh_cn", "summary": search_summary(body)})
         # ---- 首页仪表盘统计（W-4.6-87）：数据版本分布 + 最新收录 ----
         m_c = re.search(r"^>\s*创建时间[：:]\s*(.+?)\s*$", md, re.M)
         m_u = re.search(r"^>\s*更新时间[：:]\s*(.+?)\s*$", md, re.M)

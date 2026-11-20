@@ -1,4 +1,4 @@
-// 零依赖标题+路径搜索（无障碍版 W-4.6-65；W-4.6-67：惰性索引 · ?q= 深链/返回恢复 · listbox 语义修正）
+// 零依赖标题、路径与正文摘要搜索（惰性索引 · ?q= 深链/返回恢复 · listbox 语义）。
 document.addEventListener('DOMContentLoaded', ()=>{
   const box = document.getElementById('search');
   const res = document.getElementById('results');
@@ -25,10 +25,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const norm = s => String(s).toLowerCase().replace(/\u3000/g,' ');
   const esc = s => String(s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
-  // 惰性索引：载入只保留 titles.js 的原始数组引用，首次检索时才构建（data/titles.js ≈810 KB）
+  // 惰性索引：载入只保留 titles.js 的原始数组引用，首次检索时才构建。
   let items = null;
   function index(){
-    if(!items) items = window.TITLES.map(t=>({t, hay: norm(t.title)+' '+norm(t.path)}));
+    if(!items) items = window.TITLES.map(t=>({
+      t, title: norm(t.title), path: norm(t.path), summary: norm(t.summary || '')
+    }));
     return items;
   }
 
@@ -51,16 +53,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
     clear();
     const nq = norm(q).trim();
     if(!nq) return;
-    const matched = index().filter(it=> it.hay.includes(nq));
+    const matched = index().filter(it=> it.title.includes(nq) || it.path.includes(nq) || it.summary.includes(nq))
+      .sort((a,b)=>{
+        const rank = it => it.title === nq ? 0 : it.title.includes(nq) ? 1 : it.path.includes(nq) ? 2 : 3;
+        return rank(a) - rank(b);
+      });
     const hits = matched.slice(0,50);
     hits.forEach((h,i)=>{
       const li = document.createElement('li');
       li.id = 'res-'+i;
       li.setAttribute('role','option');
       li.setAttribute('aria-selected','false');
-      const cat = h.t.category ? ' <span class="stat">'+h.t.category+'</span>' : '';
+      const cat = h.t.category ? ' <span class="stat">'+esc(h.t.category)+'</span>' : '';
       const href = 'pages/' + h.t.path.split('/').map(encodeURIComponent).join('/');
-      li.innerHTML = `<a href="${href}">${esc(h.t.title)}</a>${cat}`;
+      const summary = h.t.summary ? '<span class="result-summary">'+esc(h.t.summary)+'</span>' : '';
+      li.innerHTML = `<a href="${href}">${esc(h.t.title)}</a>${cat}${summary}`;
       liNodes.push(li);
       res.appendChild(li);
     });
@@ -70,7 +77,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     } else if(matched.length > 50){
       // 结果计数 + 截断提示（两者都在 #resultmeta，不进 listbox）
       say('共 ' + matched.length + ' 条，显示前 50 条 · 还有 '+(matched.length-50)+' 条，请缩小关键词');
-    }
+    } else say('找到 ' + matched.length + ' 条结果');
     if(liNodes.length) box.setAttribute('aria-expanded','true');
   }
   // 键盘移动高亮：同步 aria-selected / aria-activedescendant，并保证可见
@@ -131,6 +138,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     }
   });
   box.addEventListener('blur', ()=>{ box.setAttribute('aria-expanded','false'); });
+  box.addEventListener('focus', ()=>{ if(liNodes.length) box.setAttribute('aria-expanded','true'); });
 
   // 载入即读深链（?q= 或 #q=）：填入搜索框并立即渲染结果（不刷新页面）
   const initialQ = readQuery();
