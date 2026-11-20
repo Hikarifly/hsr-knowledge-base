@@ -1,0 +1,48 @@
+"""Trusted checks must read PR data without running PR-provided validators."""
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from tools.trusted_quality import check, inspect_tree
+
+
+class TrustedQualityTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.trusted = self.root / 'trusted'
+        self.source = self.root / 'source'
+        for path in (self.trusted / 'scripts', self.trusted / 'tools', self.source / 'zh_cn', self.source / 'scripts'):
+            path.mkdir(parents=True)
+        (self.trusted / 'tools' / 'quality_baseline.json').write_text(json.dumps({'dead_links': []}), encoding='utf-8')
+        (self.trusted / 'scripts' / 'verify_links.py').write_text(
+            "from pathlib import Path\ndef scan(root):\n return {'dead_data_details': [('zh_cn/page.md','missing')] if 'broken' in (Path(root)/'zh_cn/page.md').read_text() else []}\n", encoding='utf-8')
+        (self.trusted / 'scripts' / 'verify_fields.py').write_text("from pathlib import Path\nprint('异常合计: ' + ('1' if 'badfield' in Path('page.md').read_text() else '0'))\n", encoding='utf-8')
+        (self.source / 'scripts' / 'verify_fields.py').write_text("raise Exception('untrusted script executed')", encoding='utf-8')
+        (self.source / 'zh_cn' / 'page.md').write_text('good', encoding='utf-8')
+
+    def test_checks_data_with_trusted_scripts_and_baseline(self):
+        self.assertTrue(check(self.source, self.trusted))
+        (self.source / 'zh_cn' / 'page.md').write_text('broken', encoding='utf-8')
+        self.assertFalse(check(self.source, self.trusted))
+        (self.source / 'zh_cn' / 'page.md').write_text('badfield', encoding='utf-8')
+        self.assertFalse(check(self.source, self.trusted))
+
+    def test_rejects_symlink_when_supported(self):
+        link = self.source / 'zh_cn' / 'link.md'
+        try:
+            link.symlink_to(self.source / 'zh_cn' / 'page.md')
+        except OSError as error:
+            self.skipTest(f'symlink unavailable: {error}')
+        with self.assertRaises(ValueError): inspect_tree(self.source)
+
+    def test_missing_or_linked_source_is_rejected(self):
+        with self.assertRaises((ValueError, OSError)): check(self.root / 'missing', self.trusted)
+        (self.source / 'zh_cn' / 'page.md').unlink()
+        (self.source / 'zh_cn').rmdir()
+        with self.assertRaises(ValueError): check(self.source, self.trusted)
+
+
+if __name__ == '__main__': unittest.main()
