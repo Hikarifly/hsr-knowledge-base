@@ -37,7 +37,7 @@ python wiki/build_wiki.py
 python tools/check_quality.py
 python tools/verify_site.py
 python tools/verify_docs.py
-python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle -v
+python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview -v
 node --check wiki/assets/app.js
 node --check wiki/assets/home.js
 node --check preview_shell/shell.js
@@ -50,6 +50,8 @@ node tools/test_wiki_browser.mjs
 浏览器检查需要 Node.js 22 或更新版本与 Chrome/Edge，路径按本机安装位置调整。它使用 `file://` 检查 1280×800、600×900 和 390×900 视口、正文摘要检索、键盘打开、减少动态效果及禁用 JavaScript 后的浏览。
 
 `preview_shell/` 和 `tools/preview_bundle.py` 是隔离预览的实验性组件，尚无可信发布流程，不应直接部署为公开预览。浏览器测试覆盖隔离、主动跳转、基本导航和过期隐藏；外层内容安全策略限制框架跳转，已在 Chromium 内核浏览器验证。正式发布前仍需验证目标浏览器兼容性并完成发布流程与安全审查。
+
+`python -m tools.stage_preview OWNER/REPO PR编号 运行编号 输出目录` 可将指定 PR 的检查产物转换成仅含 JSON 的新本地目录。必须从独立可信的检出运行；成功的 PR 检查并不能证明 PR 自己修改的工作流或测试可信。转换后的目录不会自动发布，也不能代替实时状态校验、清理和外部 PR 的完整安全审查。
 
 ---
 
