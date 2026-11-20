@@ -22,7 +22,6 @@ parent.postMessage({type:'test:home', isolated:document.body.dataset.isolated ==
 setTimeout(() => document.querySelector('#next').click(), 500);
 parent.postMessage({type:'review:approved'}, '*');
 </script></body></html>`);
-add('next.html', `<!doctype html><html><body><h1 id="content">Next page</h1><script>parent.postMessage({type:'test:next'}, '*');</script></body></html>`);
 const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, files};
 let canaries = 0, stale = false;
 const server = createServer(async (req, res) => {
@@ -36,10 +35,18 @@ const server = createServer(async (req, res) => {
     const name = names[url.pathname];
     if (!name) { res.writeHead(404).end(); return; }
     res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html');
-    res.end(await readFile(path.join('preview_shell', name)));
+    let content = await readFile(path.join('preview_shell', name), 'utf8');
+    if (name === 'index.html' && process.argv.includes('--without-frame-policy')) {
+      content = content.replace(/\s*<meta http-equiv="Content-Security-Policy" content="frame-src 'none'">/, '');
+    }
+    res.end(content);
   } catch { res.writeHead(500).end(); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+add('next.html', `<!doctype html><html><body><h1 id="content">Next page</h1><script>
+parent.postMessage({type:'test:next'}, '*');
+setTimeout(() => location.assign('http://127.0.0.1:${server.address().port}/canary'), 100);
+</script></body></html>`);
 const profile = await mkdtemp(path.join(tmpdir(), 'hsr-preview-browser-'));
 const browser = spawn(browserPath, ['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'], {stdio:'ignore'});
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -73,7 +80,7 @@ try {
   const {sessionId}=await send('Target.attachToTarget',{targetId:target.targetId,flatten:true});
   const cdp=(method,params={})=>send(method,params,sessionId);
   await cdp('Page.enable'); await cdp('Runtime.enable');
-  await cdp('Page.addScriptToEvaluateOnNewDocument', {source: `if (window === top) { window.testEvents = []; addEventListener('message', e => { if (e.data?.type?.startsWith('test:')) window.testEvents.push(e.data); }); }`});
+  await cdp('Page.addScriptToEvaluateOnNewDocument', {source: `if (window === top) { window.testEvents = []; addEventListener('securitypolicyviolation', e => window.testEvents.push({type:'test:csp', blocked:e.blockedURI, directive:e.violatedDirective})); addEventListener('message', e => { if (e.data?.type?.startsWith('test:')) window.testEvents.push(e.data); }); }`});
   await cdp('Fetch.enable',{patterns:[{urlPattern:'https://api.github.com/*'}]});
   const evaluate=async (expression, contextId) => {
     const reply=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,...(contextId ? {contextId} : {})});
@@ -88,6 +95,9 @@ try {
   }
   const outer=await evaluate("({review:document.querySelector('#review-label').textContent,notice:document.querySelector('.copyright').textContent,visible:!document.querySelector('#preview').hidden,status:document.querySelector('#status').textContent})");
   if (!events.some(e => e.type === 'test:home' && e.isolated) || !events.some(e => e.type === 'test:next')) throw new Error('Sandbox rendering or navigation failed: ' + JSON.stringify({events,outer}));
+  await wait(1500);
+  events = await evaluate('window.testEvents || []');
+  if (!events.some(e => e.type === 'test:csp' && e.directive === 'frame-src' && e.blocked?.endsWith('/canary'))) throw new Error('No blocked frame navigation was observed');
   if (outer.review !== '未经人工审查' || !outer.notice.includes('非官方') || !outer.visible || canaries) throw new Error('Preview escaped its notice or made a network request');
   stale = true;
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
@@ -97,7 +107,7 @@ try {
     if (await evaluate("document.querySelector('#preview').hidden")) { hidden = true; break; }
   }
   if (!hidden) throw new Error('Stale preview remained visible');
-  console.log('PASS: sandbox rendering, parent isolation, blocked network, notice integrity, navigation and stale preview');
+  console.log('PASS: sandbox rendering, parent isolation, blocked network and frame navigation, notice integrity, navigation and stale preview');
 } finally {
   socket?.close(); browser.kill(); server.close(); await wait(250);
   await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});
