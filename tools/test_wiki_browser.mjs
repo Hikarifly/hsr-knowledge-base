@@ -11,16 +11,24 @@ const profile = await mkdtemp(path.join(tmpdir(), 'hsr-wiki-browser-'));
 const browser = spawn(binary, [
   '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
   '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'
-], { stdio: 'ignore' });
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+let browserErrors = '';
+browser.stderr.setEncoding('utf8');
+browser.stderr.on('data', chunk => { browserErrors = (browserErrors + chunk).slice(-4000); });
+let spawnError;
+browser.on('error', error => { spawnError = error; });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 let socket;
 try {
   let port;
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 300; i++) {
     try { port = Number((await readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); break; }
-    catch { if (browser.exitCode !== null) throw new Error('Browser exited before starting'); await wait(100); }
+    catch {
+      if (spawnError || browser.exitCode !== null) throw new Error(`Browser exited before starting: ${spawnError || browserErrors}`);
+      await wait(100);
+    }
   }
-  if (!port) throw new Error('Browser did not start');
+  if (!port) throw new Error(`Browser did not start: ${browserErrors}`);
   const metadata = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
   socket = new WebSocket(metadata.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
