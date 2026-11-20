@@ -27,7 +27,7 @@ jobs:
         run: |
           python tools/verify_site.py
           python tools/verify_docs.py
-          python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review -v
+          python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact -v
       - name: Check JavaScript syntax
         run: |
           node --check wiki/assets/app.js
