@@ -107,6 +107,17 @@ try {
     if (await evaluate(`document.activeElement === document.querySelector('#search')`)) { focused = true; break; }
   }
   if (!focused) throw new Error('Search input is not reachable with Tab');
+  await cdp('Input.insertText', { text: '角色' });
+  if (!await evaluate(`document.querySelectorAll('#results li').length > 1`)) throw new Error('Need multiple results to test keyboard wrapping');
+  await pressKey('ArrowUp', 'ArrowUp', 38);
+  if (!await evaluate(`document.querySelector('#search').getAttribute('aria-activedescendant') === document.querySelector('#results li:last-child').id`)) {
+    throw new Error('ArrowUp from no selection did not select the last result');
+  }
+  await pressKey('ArrowDown', 'ArrowDown', 40);
+  if (!await evaluate(`document.querySelector('#search').getAttribute('aria-activedescendant') === document.querySelector('#results li:first-child').id`)) {
+    throw new Error('ArrowDown did not wrap from the last result to the first');
+  }
+  await pressKey('Escape', 'Escape', 27);
   await cdp('Input.insertText', { text: result.needle });
   const index = await evaluate(`(() => {
     const box = document.querySelector('#search');

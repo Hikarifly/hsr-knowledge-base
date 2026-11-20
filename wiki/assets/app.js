@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       liNodes[cur].setAttribute('aria-selected','false');
       liNodes[cur].classList.remove('hl');
     }
-    cur = (cur + d + liNodes.length) % liNodes.length;
+    cur = cur < 0 ? (d < 0 ? liNodes.length - 1 : 0) : (cur + d + liNodes.length) % liNodes.length;
     liNodes[cur].setAttribute('aria-selected','true');
     liNodes[cur].classList.add('hl');
     box.setAttribute('aria-activedescendant', liNodes[cur].id);
