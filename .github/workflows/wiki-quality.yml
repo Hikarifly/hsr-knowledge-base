@@ -37,15 +37,19 @@ jobs:
         run: |
           python tools/verify_site.py
           python tools/verify_docs.py
-          python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview -v
+          python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle -v
       - name: Check JavaScript syntax
         run: |
           node --check wiki/assets/app.js
           node --check wiki/assets/home.js
+          node --check preview_shell/shell.js
+          node --check preview_shell/frame.js
       - name: Check browser interactions
         env:
           WIKI_BROWSER: /usr/bin/google-chrome
-        run: node tools/test_wiki_browser.mjs
+        run: |
+          node tools/test_wiki_browser.mjs
+          node tools/test_preview_browser.mjs
       - name: Package untrusted preview input
         if: github.event_name == 'pull_request'
         run: python tools/package_preview.py wiki "$RUNNER_TEMP/wiki-preview.zip"
