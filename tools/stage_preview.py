@@ -19,6 +19,7 @@ from tools.preview_bundle import build_bundle
 from tools.preview_review import REPO_PATTERN, gh_api, snapshot
 
 WORKFLOW = '.github/workflows/wiki-quality.yml'
+TRUSTED_WORKFLOW = '.github/workflows/wiki-trusted-data.yml'
 SHA = re.compile(r'^[0-9a-f]{40}$')
 
 
@@ -124,8 +125,33 @@ def unwrap_artifact(wrapper, destination):
                     raise InvalidPreviewArtifact('Preview ZIP size mismatch')
 
 
-def stage(repo, number, run_id, destination):
-    if not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo) or type(number) is not int or number < 1 or type(run_id) is not int or run_id < 1:
+def trusted_check(number, pr, workflow, run, run_id):
+    """Bind the base-branch data gate to the exact open PR revision."""
+    try:
+        base_id, head_id = pr['base']['repo']['id'], pr['head']['repo']['id']
+        if (type(base_id) is not int or type(head_id) is not int or base_id < 1 or head_id < 1
+                or pr['number'] != number or pr['state'] != 'open'
+                or workflow['state'] != 'active' or workflow['path'] != TRUSTED_WORKFLOW
+                or type(workflow['id']) is not int or workflow['id'] < 1
+                or run['id'] != run_id or run['workflow_id'] != workflow['id']
+                or run['repository']['id'] != base_id or run['event'] != 'pull_request_target'
+                or run['status'] != 'completed' or run['conclusion'] != 'success'
+                or run['path'] != TRUSTED_WORKFLOW or run['head_sha'] != pr['head']['sha']
+                or type(run['run_attempt']) is not int or run['run_attempt'] < 1):
+            raise ValueError
+        matches = [item for item in run['pull_requests'] if item['number'] == number
+                   and item['head']['sha'] == pr['head']['sha'] and item['base']['sha'] == pr['base']['sha']
+                   and item['head']['repo']['id'] == head_id and item['base']['repo']['id'] == base_id]
+        if len(matches) != 1:
+            raise ValueError
+        return (run_id, run['run_attempt'])
+    except (KeyError, TypeError, ValueError):
+        raise InvalidPreviewArtifact('Trusted data check is missing, stale, or unsuccessful') from None
+
+
+def stage(repo, number, run_id, destination, *, trusted_run_id):
+    if (not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo) or type(number) is not int or number < 1
+            or type(run_id) is not int or run_id < 1 or type(trusted_run_id) is not int or trusted_run_id < 1):
         raise InvalidPreviewArtifact('Invalid staging arguments')
     prefix = f'repos/{repo}'
     pr_path, run_path = f'{prefix}/pulls/{number}', f'{prefix}/actions/runs/{run_id}'
@@ -134,10 +160,13 @@ def stage(repo, number, run_id, destination):
         pr = gh_api(pr_path)
         run = gh_api(run_path)
         pages = gh_api(run_path + '/artifacts?per_page=100', paginate=True)
+        workflow = gh_api(f'{prefix}/actions/workflows/wiki-trusted-data.yml')
+        trusted_run = gh_api(f'{prefix}/actions/runs/{trusted_run_id}')
         external = (pr.get('head', {}).get('repo') or {}).get('id') != (pr.get('base', {}).get('repo') or {}).get('id')
         review = snapshot(repo, number) if external else None
         approved = bool(review and review.get('head') == pr.get('head', {}).get('sha') and review.get('approved') is True)
-        return select_artifact(repo, number, run_id, pr, run, pages, approved)
+        artifact = select_artifact(repo, number, run_id, pr, run, pages, approved)
+        return (*artifact, *trusted_check(number, pr, workflow, trusted_run, trusted_run_id))
 
     selected = metadata()
     destination = Path(destination)
@@ -165,9 +194,10 @@ def main():
     parser.add_argument('pr', type=int)
     parser.add_argument('run', type=int)
     parser.add_argument('destination')
+    parser.add_argument('--trusted-run', type=int, required=True, help='successful trusted data-check run ID')
     args = parser.parse_args()
     try:
-        stage(args.repo, args.pr, args.run, args.destination)
+        stage(args.repo, args.pr, args.run, args.destination, trusted_run_id=args.trusted_run)
     except (InvalidPreviewArtifact, subprocess.SubprocessError, OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
         parser.exit(1, f'Cannot stage preview: {error}\n')
 

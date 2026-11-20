@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from tools.package_preview import package_site
 from tools.preview_artifact import InvalidPreviewArtifact
-from tools.stage_preview import select_artifact, stage, unwrap_artifact
+from tools.stage_preview import select_artifact, stage, trusted_check, unwrap_artifact
 
 HEAD, BASE = 'a' * 40, 'b' * 40
 PR = {'number': 7, 'state': 'open', 'head': {'sha': HEAD, 'repo': {'id': 1}},
@@ -19,6 +19,10 @@ RUN = {'id': 10, 'repository': {'id': 1}, 'event': 'pull_request', 'status': 'co
                           'base': {'sha': BASE, 'repo': {'id': 1}}}]}
 ARTIFACT = {'id': 20, 'name': f'wiki-preview-7-{HEAD}', 'expired': False, 'size_in_bytes': 123,
             'workflow_run': {'id': 10, 'repository_id': 1, 'head_repository_id': 1, 'head_sha': HEAD}}
+WORKFLOW = {'id': 42, 'state': 'active', 'path': '.github/workflows/wiki-trusted-data.yml'}
+TRUSTED_RUN = {'id': 11, 'workflow_id': 42, 'repository': {'id': 1}, 'event': 'pull_request_target',
+               'status': 'completed', 'conclusion': 'success', 'path': WORKFLOW['path'], 'head_sha': HEAD,
+               'run_attempt': 1, 'pull_requests': copy.deepcopy(RUN['pull_requests'])}
 
 
 class StagingTests(unittest.TestCase):
@@ -54,6 +58,19 @@ class StagingTests(unittest.TestCase):
         self.assertEqual(self.select(pr, run, pages, approved=True), (20, HEAD, BASE))
         self.assertRaises(InvalidPreviewArtifact, self.select, pr, run, pages, 'yes')
 
+    def test_trusted_check_requires_current_successful_base_workflow(self):
+        self.assertEqual(trusted_check(7, PR, WORKFLOW, TRUSTED_RUN, 11), (11, 1))
+        for field, value in [('id', 12), ('workflow_id', 43), ('event', 'pull_request'),
+                             ('status', 'in_progress'), ('conclusion', 'failure'),
+                             ('head_sha', 'c' * 40), ('run_attempt', 0), ('pull_requests', [])]:
+            run = copy.deepcopy(TRUSTED_RUN); run[field] = value
+            with self.subTest(field=field), self.assertRaises(InvalidPreviewArtifact):
+                trusted_check(7, PR, WORKFLOW, run, 11)
+        run = copy.deepcopy(TRUSTED_RUN); run['pull_requests'][0]['base']['sha'] = 'c' * 40
+        with self.assertRaises(InvalidPreviewArtifact): trusted_check(7, PR, WORKFLOW, run, 11)
+        workflow = dict(WORKFLOW, state='disabled_manually')
+        with self.assertRaises(InvalidPreviewArtifact): trusted_check(7, PR, workflow, TRUSTED_RUN, 11)
+
     def test_wrapper_rejects_other_members_and_symlinks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -77,14 +94,18 @@ class StagingTests(unittest.TestCase):
             with zipfile.ZipFile(root / 'wrapper.zip', 'w') as z: z.write(root / 'inner.zip', 'wiki-preview.zip')
             pages = [{'artifacts': [ARTIFACT]}]
             def fake_download(repo, artifact_id, destination): Path(destination).write_bytes((root / 'wrapper.zip').read_bytes())
-            good = [PR, RUN, pages]
+            good = [PR, RUN, pages, WORKFLOW, TRUSTED_RUN]
             changed = copy.deepcopy(PR); changed['head']['sha'] = 'c' * 40
             with patch('tools.stage_preview.gh_api', side_effect=good * 3), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
-                stage('owner/repo', 7, 10, root / 'bundle')
+                stage('owner/repo', 7, 10, root / 'bundle', trusted_run_id=11)
             self.assertTrue((root / 'bundle' / 'manifest.json').is_file())
-            with patch('tools.stage_preview.gh_api', side_effect=good * 2 + [changed, RUN, pages]), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
-                with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'stale')
+            with patch('tools.stage_preview.gh_api', side_effect=good * 2 + [changed, RUN, pages, WORKFLOW, TRUSTED_RUN]), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
+                with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'stale', trusted_run_id=11)
             self.assertFalse((root / 'stale').exists())
+            rerun = dict(TRUSTED_RUN, run_attempt=2)
+            with patch('tools.stage_preview.gh_api', side_effect=good * 2 + [PR, RUN, pages, WORKFLOW, rerun]), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
+                with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'rerun', trusted_run_id=11)
+            self.assertFalse((root / 'rerun').exists())
 
     def test_external_approval_revoked_during_conversion_leaves_no_output(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -95,12 +116,14 @@ class StagingTests(unittest.TestCase):
             with zipfile.ZipFile(root / 'wrapper.zip', 'w') as z: z.write(root / 'inner.zip', 'wiki-preview.zip')
             pr, run, artifact = copy.deepcopy(PR), copy.deepcopy(RUN), copy.deepcopy(ARTIFACT)
             pr['head']['repo']['id'] = run['pull_requests'][0]['head']['repo']['id'] = 2
+            trusted_run = copy.deepcopy(TRUSTED_RUN)
+            trusted_run['pull_requests'][0]['head']['repo']['id'] = 2
             artifact['workflow_run']['head_repository_id'] = 2
-            responses = [pr, run, [{'artifacts': [artifact]}]] * 3
+            responses = [pr, run, [{'artifacts': [artifact]}], WORKFLOW, trusted_run] * 3
             approvals = [{'head': HEAD, 'approved': True}] * 2 + [{'head': HEAD, 'approved': False}]
             def fake_download(repo, artifact_id, destination): Path(destination).write_bytes((root / 'wrapper.zip').read_bytes())
             with patch('tools.stage_preview.gh_api', side_effect=responses), patch('tools.stage_preview.snapshot', side_effect=approvals), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
-                with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'revoked')
+                with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'revoked', trusted_run_id=11)
             self.assertFalse((root / 'revoked').exists())
 
 
