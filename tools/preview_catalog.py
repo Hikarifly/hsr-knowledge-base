@@ -19,6 +19,7 @@ from pathlib import Path
 from tools.preview_artifact import MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES, InvalidPreviewArtifact, archive_path
 from tools.preview_bundle import safe_json
 from tools.preview_review import REPO_PATTERN, gh_api, snapshot
+from tools.stage_preview import trusted_check
 
 SHA = re.compile(r'^[0-9a-f]{40}$')
 DIGEST = re.compile(r'^[0-9a-f]{64}$')
@@ -38,10 +39,19 @@ def metadata(repo, number, manifest):
     run = gh_api(f"repos/{repo}/actions/runs/{manifest['run']}")
     matches = [item for item in run['pull_requests'] if item['number'] == number
                and item['head']['sha'] == manifest['head'] and item['base']['sha'] == manifest['base']]
-    return (run['id'] == manifest['run'] and run['event'] == 'pull_request'
+    valid_build = (run['id'] == manifest['run'] and run['event'] == 'pull_request'
             and run['status'] == 'completed' and run['conclusion'] == 'success'
             and run['path'] == '.github/workflows/wiki-quality.yml'
             and run['head_sha'] == manifest['head'] and len(matches) == 1)
+    if not valid_build:
+        return False
+    workflow = gh_api(f'repos/{repo}/actions/workflows/wiki-trusted-data.yml')
+    trusted_run = gh_api(f"repos/{repo}/actions/runs/{manifest['trusted_run']}")
+    try:
+        return trusted_check(number, pr, workflow, trusted_run, manifest['trusted_run']) == (
+            manifest['trusted_run'], manifest['trusted_attempt'])
+    except InvalidPreviewArtifact:
+        return False
 
 
 def regular(path):
@@ -62,6 +72,8 @@ def validated_manifest(bundle, repo, number):
                 or type(manifest['pr']) is not int or manifest['pr'] != number
                 or not SHA.fullmatch(manifest['head']) or not SHA.fullmatch(manifest['base'])
                 or type(manifest['run']) is not int or manifest['run'] < 1
+                or type(manifest['trusted_run']) is not int or manifest['trusted_run'] < 1
+                or type(manifest['trusted_attempt']) is not int or manifest['trusted_attempt'] < 1
                 or not isinstance(files, dict) or not 0 < len(files) <= MAX_FILES or 'index.html' not in files):
             raise ValueError
         for path, digest in files.items():

@@ -22,8 +22,8 @@ parent.postMessage({type:'test:home', isolated:document.body.dataset.isolated ==
 setTimeout(() => document.querySelector('#next').click(), 500);
 parent.postMessage({type:'review:approved'}, '*');
 </script></body></html>`);
-const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, files};
-let canaries = 0, stale = false, delayNextPr = false;
+const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, trusted_run:2, trusted_attempt:1, files};
+let canaries = 0, stale = false, delayNextPr = false, trustedAttempt = 1;
 let reviewState = 'APPROVED';
 const review = {id: 1, state: 'APPROVED', user: {login:'Reviewer',type:'User'}, commit_id:head, submitted_at:'2026-01-01T00:00:00Z'};
 let captured = Math.floor(Date.now() / 1000);
@@ -114,9 +114,11 @@ try {
     if (m.method === 'Fetch.requestPaused') {
       githubRequests++;
       const data = m.params.request.url.includes('/reviews?') ? [{...review,state:reviewState}]
+        : m.params.request.url.includes('/actions/workflows/') ? {id:42,state:'active',path:'.github/workflows/wiki-trusted-data.yml'}
+        : m.params.request.url.endsWith('/actions/runs/2') ? {id:2,workflow_id:42,repository:{id:1},run_attempt:trustedAttempt,event:'pull_request_target',status:'completed',conclusion:'success',head_sha:head,path:'.github/workflows/wiki-trusted-data.yml',pull_requests:[{number:37,head:{sha:head,repo:{id:1}},base:{sha:base,repo:{id:1}}}]}
         : m.params.request.url.includes('/actions/runs/')
         ? {event:'pull_request', conclusion:'success',head_sha:head,path:'.github/workflows/wiki-quality.yml',pull_requests:[{number:37,head:{sha:head},base:{sha:base}}]}
-        : {state:'open',head:{sha:stale ? 'c'.repeat(40) : head},base:{sha:base}};
+        : {state:'open',head:{sha:stale ? 'c'.repeat(40) : head,repo:{id:1}},base:{sha:base,repo:{id:1}}};
       const delay = !m.params.request.url.includes('/actions/runs/') && delayNextPr ? 800 : 0;
       if (delay) delayNextPr = false;
       setTimeout(() => send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'},{name:'Access-Control-Allow-Origin',value:'*'}],body:Buffer.from(JSON.stringify(data)).toString('base64')},m.sessionId).catch(() => {}), delay);
@@ -179,6 +181,14 @@ try {
     await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
     await wait(500);
     if (!await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Expired approval remained visible');
+    trustedAttempt = 2;
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait(500);
+    if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('Repeated trusted check left preview visible');
+    trustedAttempt = 1;
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait(500);
+    if (await evaluate("document.querySelector('#preview').hidden")) throw new Error('Valid trusted check did not restore preview');
   }
   delayNextPr = true;
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");

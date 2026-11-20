@@ -179,7 +179,8 @@ def stage(repo, number, run_id, destination, *, trusted_run_id):
         extract_preview_zip(root / 'wiki-preview.zip', root / 'site')
         if metadata() != selected:
             raise InvalidPreviewArtifact('PR or artifact changed during staging')
-        build_bundle(root / 'site', root / 'bundle', repo=repo, pr=number, head=selected[1], base=selected[2], run=run_id)
+        build_bundle(root / 'site', root / 'bundle', repo=repo, pr=number, head=selected[1], base=selected[2],
+                     run=run_id, trusted_run=selected[3], trusted_attempt=selected[4])
         # Check again after the expensive conversion; never publish this output blindly.
         if metadata() != selected:
             raise InvalidPreviewArtifact('PR or artifact changed during conversion')

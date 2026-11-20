@@ -31,7 +31,8 @@
       proof.head === manifest.head && Number.isSafeInteger(proof.captured_at) &&
       age >= -5000 && age < 30000 && typeof proof.approved === 'boolean' &&
       proof.preview?.head === manifest.head && proof.preview?.base === manifest.base &&
-      proof.preview?.run === manifest.run && proof.preview?.valid === true;
+      proof.preview?.run === manifest.run && proof.preview?.trusted_run === manifest.trusted_run &&
+      proof.preview?.trusted_attempt === manifest.trusted_attempt && proof.preview?.valid === true;
   }
 
   function showLiveReview(proof, check) {
@@ -170,16 +171,29 @@
         return true;
       }
       if (liveServiceSeen) throw new Error('Preview service unavailable');
-      const [pr, run] = await Promise.all([
+      const [pr, run, workflow, trustedRun] = await Promise.all([
         json(`https://api.github.com/repos/${REPO}/pulls/${number}`),
-        json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.run}`)
+        json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.run}`),
+        json(`https://api.github.com/repos/${REPO}/actions/workflows/wiki-trusted-data.yml`),
+        json(`https://api.github.com/repos/${REPO}/actions/runs/${manifest.trusted_run}`)
       ]);
       const associated = Array.isArray(run.pull_requests) && run.pull_requests.some(item =>
         item.number === Number(number) && item.head?.sha === manifest.head && item.base?.sha === manifest.base);
+      const trustedAssociated = Array.isArray(trustedRun.pull_requests) && trustedRun.pull_requests.filter(item =>
+        item.number === Number(number) && item.head?.sha === manifest.head && item.base?.sha === manifest.base &&
+        item.head?.repo?.id === pr.head?.repo?.id && item.base?.repo?.id === pr.base?.repo?.id).length === 1;
       if (attempt !== verification) return false;
       if (pr.state !== 'open' || pr.head?.sha !== manifest.head || pr.base?.sha !== manifest.base ||
           run.event !== 'pull_request' || run.conclusion !== 'success' || run.head_sha !== manifest.head ||
-          run.path !== '.github/workflows/wiki-quality.yml' || !associated) {
+          run.path !== '.github/workflows/wiki-quality.yml' || !associated ||
+          workflow.state !== 'active' || workflow.path !== '.github/workflows/wiki-trusted-data.yml' ||
+          !Number.isSafeInteger(workflow.id) || workflow.id < 1 ||
+          !Number.isSafeInteger(pr.head?.repo?.id) || !Number.isSafeInteger(pr.base?.repo?.id) ||
+          trustedRun.id !== manifest.trusted_run || trustedRun.workflow_id !== workflow.id ||
+          trustedRun.repository?.id !== pr.base.repo.id || trustedRun.run_attempt !== manifest.trusted_attempt ||
+          trustedRun.event !== 'pull_request_target' || trustedRun.status !== 'completed' ||
+          trustedRun.conclusion !== 'success' || trustedRun.path !== workflow.path ||
+          trustedRun.head_sha !== manifest.head || !trustedAssociated) {
         throw new Error('Preview is stale');
       }
       verified = true;
@@ -244,7 +258,10 @@
       manifest = await json(`previews/${number}/manifest.json`);
       if (manifest.version !== 1 || manifest.repo !== REPO || manifest.pr !== Number(number) ||
           !/^[0-9a-f]{40}$/.test(manifest.head) || !/^[0-9a-f]{40}$/.test(manifest.base) ||
-          !Number.isSafeInteger(manifest.run) || manifest.run < 1 || !manifest.files || typeof manifest.files !== 'object') throw new Error('Invalid manifest');
+          !Number.isSafeInteger(manifest.run) || manifest.run < 1 ||
+          !Number.isSafeInteger(manifest.trusted_run) || manifest.trusted_run < 1 ||
+          !Number.isSafeInteger(manifest.trusted_attempt) || manifest.trusted_attempt < 1 ||
+          !manifest.files || typeof manifest.files !== 'object') throw new Error('Invalid manifest');
       const response = await fetch('frame.js', {cache: 'no-store', credentials: 'omit'});
       if (!response.ok) throw new Error('Missing trusted bridge');
       const source = await response.text();

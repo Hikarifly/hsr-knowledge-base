@@ -1,5 +1,6 @@
 """The staging gate treats GitHub metadata and downloaded ZIPs as untrusted."""
 import copy
+import json
 import tempfile
 import unittest
 import zipfile
@@ -99,6 +100,8 @@ class StagingTests(unittest.TestCase):
             with patch('tools.stage_preview.gh_api', side_effect=good * 3), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
                 stage('owner/repo', 7, 10, root / 'bundle', trusted_run_id=11)
             self.assertTrue((root / 'bundle' / 'manifest.json').is_file())
+            manifest = json.loads((root / 'bundle' / 'manifest.json').read_text(encoding='ascii'))
+            self.assertEqual((manifest['trusted_run'], manifest['trusted_attempt']), (11, 1))
             with patch('tools.stage_preview.gh_api', side_effect=good * 2 + [changed, RUN, pages, WORKFLOW, TRUSTED_RUN]), patch('tools.stage_preview.download_artifact', side_effect=fake_download):
                 with self.assertRaises(InvalidPreviewArtifact): stage('owner/repo', 7, 10, root / 'stale', trusted_run_id=11)
             self.assertFalse((root / 'stale').exists())

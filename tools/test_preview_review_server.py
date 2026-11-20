@@ -84,7 +84,7 @@ class ReviewServerTests(unittest.TestCase):
             bundle = site / 'previews' / '37'
             (bundle / 'objects').mkdir(parents=True)
             (bundle / 'manifest.json').write_text(json.dumps({'version': 1, 'repo': 'owner/repo', 'pr': 37,
-                'head': HEAD, 'base': 'b' * 40, 'run': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
+                'head': HEAD, 'base': 'b' * 40, 'run': 1, 'trusted_run': 2, 'trusted_attempt': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
             (bundle / 'review.json').write_text('{"approved":false}', encoding='ascii')
             (bundle / 'source.html').write_text('<script>bad</script>', encoding='ascii')
             digest = 'a' * 64
@@ -123,7 +123,7 @@ class ReviewServerTests(unittest.TestCase):
             bundle.mkdir(parents=True)
             manifest_path = bundle / 'manifest.json'
             manifest_path.write_text(json.dumps({'version': 1, 'repo': 'owner/repo', 'pr': 37,
-                'head': HEAD, 'base': 'b' * 40, 'run': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
+                'head': HEAD, 'base': 'b' * 40, 'run': 1, 'trusted_run': 2, 'trusted_attempt': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
             self.server.site = site
             self.server.validator = lambda repo, number, manifest: False
             status, body, _ = self.get('/previews/37/review.json')

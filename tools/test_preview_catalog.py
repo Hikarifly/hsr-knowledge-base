@@ -31,14 +31,24 @@ class PreviewCatalogTests(unittest.TestCase):
         review_patch.start()
         self.addCleanup(review_patch.stop)
         for number in self.states:
-            build_bundle(self.site, self.bundles / str(number), repo='owner/repo', pr=number, head=HEAD, base=BASE, run=number + 10)
+            build_bundle(self.site, self.bundles / str(number), repo='owner/repo', pr=number, head=HEAD, base=BASE,
+                         run=number + 10, trusted_run=number + 20, trusted_attempt=1)
 
     def api(self, path):
+        if '/actions/workflows/' in path:
+            return {'id': 42, 'state': 'active', 'path': '.github/workflows/wiki-trusted-data.yml'}
         number = int(path.rsplit('/', 1)[-1])
         if '/pulls/' in path:
             state = self.states[number]
             return {'number': number, 'state': 'closed' if state == 'closed' else 'open',
-                    'head': {'sha': 'c' * 40 if state == 'stale' else HEAD}, 'base': {'sha': BASE}}
+                    'head': {'sha': 'c' * 40 if state == 'stale' else HEAD, 'repo': {'id': 1}},
+                    'base': {'sha': BASE, 'repo': {'id': 1}}}
+        if number > 20:
+            return {'id': number, 'workflow_id': 42, 'repository': {'id': 1}, 'run_attempt': 1,
+                    'event': 'pull_request_target', 'status': 'completed', 'conclusion': 'success',
+                    'path': '.github/workflows/wiki-trusted-data.yml', 'head_sha': HEAD,
+                    'pull_requests': [{'number': number - 20, 'head': {'sha': HEAD, 'repo': {'id': 1}},
+                                       'base': {'sha': BASE, 'repo': {'id': 1}}}]}
         number -= 10
         return {'id': number + 10, 'event': 'pull_request', 'status': 'completed', 'conclusion': 'success',
                 'path': '.github/workflows/wiki-quality.yml', 'head_sha': HEAD,
@@ -91,6 +101,30 @@ class PreviewCatalogTests(unittest.TestCase):
         with patch('tools.preview_catalog.gh_api', side_effect=self.api), patch('tools.preview_catalog.snapshot', side_effect=subprocess.CalledProcessError(1, 'gh')):
             assemble('owner/repo', self.bundles, self.shell, self.root / 'out')
         self.assertFalse((self.root / 'out' / 'previews' / '1' / 'review.json').exists())
+
+    def test_stale_or_repeated_trusted_check_is_never_published(self):
+        def api(path):
+            result = self.api(path)
+            if path.endswith('/actions/runs/21'):
+                result['run_attempt'] = 2
+            return result
+        with patch('tools.preview_catalog.gh_api', side_effect=api):
+            self.assertEqual(assemble('owner/repo', self.bundles, self.shell, self.root / 'out'), [2])
+        self.assertFalse((self.root / 'out' / 'previews' / '1').exists())
+
+    def test_trusted_check_changing_during_assembly_aborts_output(self):
+        calls = 0
+        def api(path):
+            nonlocal calls
+            result = self.api(path)
+            if path.endswith('/actions/runs/21'):
+                calls += 1
+                if calls == 2:
+                    result['run_attempt'] = 2
+            return result
+        with patch('tools.preview_catalog.gh_api', side_effect=api), self.assertRaises(InvalidPreviewArtifact):
+            assemble('owner/repo', self.bundles, self.shell, self.root / 'out')
+        self.assertFalse((self.root / 'out').exists())
 
 
 if __name__ == '__main__': unittest.main()
