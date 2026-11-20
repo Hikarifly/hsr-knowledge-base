@@ -30,6 +30,8 @@ jobs:
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/head
           path: input
+          # Fork content is read only by trusted scanners below; never run PR files.
+          allow-unsafe-pr-checkout: true
           persist-credentials: false
           submodules: false
           lfs: false
