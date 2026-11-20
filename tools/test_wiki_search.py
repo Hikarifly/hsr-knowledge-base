@@ -45,6 +45,33 @@ class WikiSearchTests(unittest.TestCase):
         self.assertTrue(any(tag == 'li' and attrs.get('data-path') == payload
                             for tag, attrs in parser.tags))
 
+    def test_plain_markdown_cannot_emit_raw_html(self):
+        class Tags(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.names = []
+
+            def handle_starttag(self, tag, attrs):
+                self.names.append(tag)
+
+        rendered = md_to_html('<script>alert(1)</script> <img src=x onerror=alert(1)> '
+                              '&lt;script&gt; **粗体** <br> `代码`', 1)
+        parser = Tags()
+        parser.feed(rendered)
+        self.assertNotIn('script', parser.names)
+        self.assertNotIn('img', parser.names)
+        self.assertIn('strong', parser.names)
+        self.assertIn('br', parser.names)
+        self.assertIn('code', parser.names)
+        self.assertIn('&amp;lt;script&amp;gt;', rendered)
+
+    def test_inline_formatting_preserves_ampersands_and_links(self):
+        rendered = convert_inline('文字 & **粗体** [链接](https://example.test/?a=1&b=2) `a<b`', 0)
+        self.assertIn('文字 &amp; <strong>粗体</strong>', rendered)
+        self.assertIn('href="https://example.test/?a=1&amp;b=2"', rendered)
+        self.assertIn('<code>a&lt;b</code>', rendered)
+        self.assertNotIn('&amp;amp;', rendered)
+
     def test_toc_omitted_for_short_page(self):
         self.assertEqual(page_toc(md_to_html("## 唯一章节\n正文", 1)), "")
 

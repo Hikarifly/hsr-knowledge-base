@@ -101,6 +101,11 @@ def convert_inline(text, depth, current_rel=""):
     """depth = 当前页面在 pages/ 下的目录层数；current_rel = 当前页面相对 pages/ 根的路径（无后缀）"""
     up = "../" * depth
     codes = []
+    markup = []
+    def stash_markup(value):
+        markup.append(value)
+        return f"\x00MARKUP{len(markup)-1}\x00"
+
     def stash_code(m):
         codes.append(m.group(1)); return f"\x00CODE{len(codes)-1}\x00"
     text = re.sub(r"`([^`]+)`", stash_code, text)
@@ -131,7 +136,7 @@ def convert_inline(text, depth, current_rel=""):
             return (f'<span class="missing" title="本站未收录该页面">'
                     f'{esc(disp)}<span class="missing-note">（本站未收录）</span></span>')
         return f'<a href="{up}pages/{urlq(t)}.html">{esc(disp)}</a>'
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", md_link, text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda m: stash_markup(md_link(m)), text)
 
     # ---- 双链 [[a|b]] ----
     def wikilink(m):
@@ -147,9 +152,14 @@ def convert_inline(text, depth, current_rel=""):
             return (f'<span class="missing" title="本站未收录该页面">'
                     f'{esc(disp)}<span class="missing-note">（本站未收录）</span></span>')
         return f'<a href="{up}pages/{urlq(target)}.html">{esc(disp)}</a>'
-    text = re.sub(r"\[\[[^\]]+\]\]", wikilink, text)
+    text = re.sub(r"\[\[[^\]]+\]\]", lambda m: stash_markup(wikilink(m)), text)
 
+    # Preserve simple line breaks used by existing Markdown; escape all other raw HTML.
+    text = re.sub(r"<br\s*/?>", lambda m: stash_markup("<br>"), text, flags=re.I)
+    text = esc(text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    for i, value in enumerate(markup):
+        text = text.replace(f"\x00MARKUP{i}\x00", value)
     for i, c in enumerate(codes):
         text = text.replace(f"\x00CODE{i}\x00", f"<code>{esc(c)}</code>")
     return text
