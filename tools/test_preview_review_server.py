@@ -116,5 +116,29 @@ class ReviewServerTests(unittest.TestCase):
             self.server.site = site
             self.assertEqual(self.get('/shell.js')[0], 404)
 
+    def test_live_status_rejects_stale_or_unverifiable_preview(self):
+        with tempfile.TemporaryDirectory() as directory:
+            site = Path(directory)
+            bundle = site / 'previews' / '37'
+            bundle.mkdir(parents=True)
+            manifest_path = bundle / 'manifest.json'
+            manifest_path.write_text(json.dumps({'version': 1, 'repo': 'owner/repo', 'pr': 37,
+                'head': HEAD, 'base': 'b' * 40, 'run': 1, 'files': {'index.html': 'a' * 64}}), encoding='ascii')
+            self.server.site = site
+            self.server.validator = lambda repo, number, manifest: False
+            status, body, _ = self.get('/previews/37/review.json')
+            self.assertEqual(status, 200)
+            self.assertFalse(body['preview']['valid'])
+            self.server.cache.clear()
+
+            def failure(repo, number, manifest):
+                raise subprocess.CalledProcessError(1, 'gh')
+            self.server.validator = failure
+            self.assertEqual(self.get('/previews/37/review.json')[0], 503)
+            self.assertNotIn(37, self.server.cache)
+            manifest_path.write_text('{}', encoding='ascii')
+            self.assertEqual(self.get('/previews/37/review.json')[0], 503)
+            self.assertNotIn(37, self.server.cache)
+
 
 if __name__ == '__main__': unittest.main()
