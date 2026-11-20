@@ -37,7 +37,7 @@ python wiki/build_wiki.py
 python tools/check_quality.py
 python tools/verify_site.py
 python tools/verify_docs.py
-python -m unittest tools.test_wiki_search tools.test_quality_gate -v
+python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review -v
 node --check wiki/assets/app.js
 node --check wiki/assets/home.js
 $env:WIKI_BROWSER = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
