@@ -120,6 +120,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   box.addEventListener('input', ()=>{ render(box.value); writeQuery(box.value); });
   box.addEventListener('keydown', e=>{
+    // Let the input method handle candidate selection and confirmation.
+    if(e.isComposing || e.keyCode === 229) return;
     if(e.key === 'ArrowDown'){ e.preventDefault(); move(1); }
     else if(e.key === 'ArrowUp'){ e.preventDefault(); move(-1); }
     else if(e.key === 'Enter'){

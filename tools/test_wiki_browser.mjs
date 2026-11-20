@@ -128,6 +128,21 @@ try {
   if (!await evaluate(`document.querySelector('#search').getAttribute('aria-activedescendant') === document.querySelector('#results li:first-child').id`)) {
     throw new Error('ArrowDown did not wrap from the last result to the first');
   }
+  // IME candidate selection owns these keys while composing; search must not cancel them.
+  const imeOk = await evaluate(`(() => {
+    const box = document.querySelector('#search');
+    const selected = box.getAttribute('aria-activedescendant');
+    const value = box.value;
+    for (const key of ['ArrowDown', 'ArrowUp', 'Enter', 'Escape']) {
+      const event = new KeyboardEvent('keydown', { key, isComposing: true, bubbles: true, cancelable: true });
+      box.dispatchEvent(event);
+      if (event.defaultPrevented || box.value !== value || box.getAttribute('aria-activedescendant') !== selected) return false;
+    }
+    const legacy = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true });
+    box.dispatchEvent(legacy);
+    return !legacy.defaultPrevented && box.value === value && box.getAttribute('aria-activedescendant') === selected;
+  })()`);
+  if (!imeOk) throw new Error('Search intercepted IME composition keys');
   await pressKey('Escape', 'Escape', 27);
   await cdp('Input.insertText', { text: result.needle });
   const index = await evaluate(`(() => {
