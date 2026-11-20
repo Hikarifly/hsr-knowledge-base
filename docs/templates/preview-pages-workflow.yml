@@ -1,0 +1,52 @@
+# Template for a separate, trusted Pages repository. Do not install it in this
+# repository: that would deploy over the production Pages site.
+name: Publish Wiki PR previews
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
+
+permissions: {}
+concurrency:
+  group: wiki-preview-pages
+  cancel-in-progress: false
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # The source repository is public. Only its reviewed default branch is
+      # trusted to supply the publisher, shell, and validation code.
+      - uses: actions/checkout@v7
+        with:
+          repository: ganmayou2333/hsr-knowledge-base
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Assemble previews as inert data
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_READ_TOKEN }}
+          PREVIEW_SOURCE: ganmayou2333/hsr-knowledge-base
+        run: |
+          test -n "$GH_TOKEN"
+          python -m tools.reconcile_previews "$PREVIEW_SOURCE" preview_shell "$RUNNER_TEMP/preview-site"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/preview-site
+
+  deploy:
+    needs: assemble
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
