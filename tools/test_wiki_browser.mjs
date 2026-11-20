@@ -75,6 +75,17 @@ try {
     const ok = await evaluate('document.documentElement.scrollWidth <= innerWidth');
     if (!ok) throw new Error(`Homepage overflows at ${width}px`);
   }
+  const longQueryOk = await evaluate(`(() => {
+    const box = document.querySelector('#search');
+    box.value = 'x'.repeat(500);
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    const ok = document.querySelector('#resultmeta').textContent.includes('没有匹配') &&
+      document.documentElement.scrollWidth <= innerWidth;
+    box.value = '';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return ok;
+  })()`);
+  if (!longQueryOk) throw new Error('Long no-result query overflows the mobile viewport');
   const result = await evaluate(`(() => {
     const candidates = window.TITLES.filter(t => t.summary && t.summary.length > 12);
     for (const item of candidates) {
