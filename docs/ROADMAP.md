@@ -15,7 +15,7 @@
 | **数据可信** | 每个实体有官方来源；取不到写「待补充」并登记；`verify_fields` 异常 0 |
 | **版本可跟进** | 新版本上线后 N 天内完成入库；版本基线写在 README 与 `metrics.md` |
 | **多语言诚实** | 只收官方本地化原文；非官方内容逐文件标注工具/来源/时间；不冒充官方 |
-| **站点可读** | 6685 页死链 0、未收录 0；`verify_site[1]–[16]` 全绿；移动端不溢出 |
+| **站点可读** | 当前输入生成的页面死链 0；未收录内容明确降级；`verify_site[1]–[16]` 全绿；移动端不溢出 |
 | **决策可追溯** | 每条口径有 D-* 或 ADR；`实测 > 决策 > 规范 > 叙述` 冲突时以此为准 |
 
 ---
@@ -47,7 +47,7 @@
 
 ### 主线 C：文档体系收敛
 
-已完成：`GLOSSARY.md`、`docs/adr/`（主题聚合 + D→ADR 映射，17 条 ADR / 78 条 D 号）、`docs/metrics.md` + `verify_site[16]`、`update.md` 分卷（`docs/log/`）。**`docs/backlog/` 与 `docs/archive/` 按 D-075 缓建**（「内容没写好就先动结构」被否决），等内容线稳定后再评估。
+已完成：`GLOSSARY.md`、`docs/adr/`（主题聚合 + D→ADR 映射，规模与覆盖情况见 [ADR 索引](adr/README.md)）、`docs/metrics.md` + `verify_site[16]`、`update.md` 分卷（`docs/log/`）。**`docs/backlog/` 与 `docs/archive/` 按 D-075 缓建**（「内容没写好就先动结构」被否决），等内容线稳定后再评估。
 后续只剩**维护**：
 
 | 动作 | 频率 |
@@ -108,7 +108,7 @@
 ## 四、质量闸门（每次合并前必须）
 
 ```bash
-python wiki/build_wiki.py            # 6685± 页 / 死链 0 / 未收录 0
+python wiki/build_wiki.py            # 页数随输入变化；死链 0，未收录内容按预期降级
 python tools/verify_site.py          # RESULT: PASS（[1]–[16]，[5] 六项 0）
 cd zh_cn && python ../scripts/verify_fields.py   # 异常 0 / 待补充 156（必须在 zh_cn 目录）
 cd .. && python scripts/verify_links.py          # exit 0，数据区死链 0

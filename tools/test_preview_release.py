@@ -1,0 +1,117 @@
+"""Local release activation is atomic and leaves older sites recoverable."""
+import json
+import os
+import tempfile
+import threading
+import time
+import unittest
+import urllib.error
+import urllib.request
+from pathlib import Path
+from unittest.mock import patch
+
+from tools.preview_artifact import InvalidPreviewArtifact
+from tools.preview_release import GRACE_SECONDS, prune, publish
+from tools.preview_release_state import active_site
+from tools.preview_review_server import ReviewServer
+
+HEAD = 'a' * 40
+
+
+def fixture(site, title='one', head=HEAD):
+    site = Path(site)
+    bundle = site / 'previews' / '7'
+    bundle.mkdir(parents=True)
+    (site / 'index.html').write_text(f'<head></head><h1>{title}</h1>', encoding='ascii')
+    manifest = {'version': 1, 'repo': 'owner/repo', 'pr': 7, 'head': head, 'base': 'b' * 40,
+                'run': 10, 'run_attempt': 1, 'trusted_run': 11, 'trusted_attempt': 1,
+                'files': {'index.html': 'c' * 64}}
+    (bundle / 'manifest.json').write_text(json.dumps(manifest), encoding='ascii')
+    return [7]
+
+
+class ReleaseTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def publish(self, title='one', valid=True):
+        with patch('tools.preview_release.reconcile', side_effect=lambda repo, shell, site: fixture(site, title)), \
+                patch('tools.preview_release.metadata', return_value=valid):
+            return publish('owner/repo', self.root, self.root)
+
+    def test_switches_only_after_validation_and_keeps_previous(self):
+        self.assertEqual(self.publish('one'), [7])
+        first = active_site(self.root)
+        with self.assertRaises(InvalidPreviewArtifact):
+            self.publish('bad', valid=False)
+        self.assertEqual(active_site(self.root), first)
+        self.assertEqual(len(list((self.root / 'sites').iterdir())), 1)
+        self.assertFalse((self.root / '.publish-lock').exists())
+        self.assertEqual(self.publish('two'), [7])
+        second = active_site(self.root)
+        self.assertNotEqual(first, second)
+        self.assertTrue(first.is_dir())
+        self.assertIn('two', (second / 'index.html').read_text(encoding='ascii'))
+
+    def test_only_old_owned_releases_are_pruned(self):
+        self.publish()
+        current = active_site(self.root)
+        sites = self.root / 'sites'
+        old, foreign = sites / ('site-' + '1' * 32), sites / ('site-' + '2' * 32)
+        for site, repo in [(old, 'owner/repo'), (foreign, 'other/repo')]:
+            site.mkdir()
+            (site / '.preview-release.json').write_text(json.dumps({'version': 1, 'repo': repo, 'name': site.name}), encoding='ascii')
+            timestamp = time.time() - GRACE_SECONDS - 10
+            os.utime(site, (timestamp, timestamp))
+        prune(self.root, 'owner/repo', {current.name})
+        self.assertFalse(old.exists())
+        self.assertTrue(foreign.is_dir())
+        self.assertTrue(current.is_dir())
+
+    def test_collision_does_not_remove_existing_directory(self):
+        sites = self.root / 'sites'; sites.mkdir()
+        existing = sites / ('site-' + '1' * 32); existing.mkdir()
+        (existing / 'keep').write_text('keep', encoding='ascii')
+        with patch('tools.preview_release.secrets.token_hex', return_value='1' * 32), \
+                patch('tools.preview_release.reconcile', side_effect=InvalidPreviewArtifact('exists')):
+            with self.assertRaises(InvalidPreviewArtifact):
+                publish('owner/repo', self.root, self.root)
+        self.assertEqual((existing / 'keep').read_text(encoding='ascii'), 'keep')
+
+    def test_service_switches_sites_and_invalidates_review_cache(self):
+        self.publish('one')
+        head = [HEAD]
+        def reader(repo, number):
+            return {'pr': number, 'head': head[0], 'approved': True, 'reviews': [], 'captured_at': int(time.time())}
+        server = ReviewServer(('127.0.0.1', 0), 'owner/repo', reader=reader, site_root=self.root,
+                              validator=lambda repo, number, manifest: True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            address = f'http://127.0.0.1:{server.server_port}'
+            with urllib.request.urlopen(address, timeout=5) as response:
+                self.assertIn(b'one', response.read())
+            self.assertEqual(server.get_review(7)['head'], HEAD)
+            other_head = 'd' * 40
+            with patch('tools.preview_release.reconcile', side_effect=lambda repo, shell, site: fixture(site, 'two', other_head)), \
+                    patch('tools.preview_release.metadata', return_value=True):
+                publish('owner/repo', self.root, self.root)
+            head[0] = other_head
+            with urllib.request.urlopen(address, timeout=5) as response:
+                self.assertIn(b'two', response.read())
+            self.assertEqual(server.get_review(7)['head'], other_head)
+            (self.root / 'current').write_text('../invalid', encoding='ascii')
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(address, timeout=5)
+            self.assertEqual(error.exception.code, 503)
+            error.exception.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -33,7 +33,7 @@ try:
 except OSError:
     TOP_DIRS = ()
 
-def esc(s): return html.escape(s, quote=False)
+def esc(s): return html.escape(s, quote=True)
 
 def urlq(path):
     """把页面相对路径编码为合法 URL（含全角引号/空格/中文）。保留 '/'。
@@ -101,6 +101,11 @@ def convert_inline(text, depth, current_rel=""):
     """depth = 当前页面在 pages/ 下的目录层数；current_rel = 当前页面相对 pages/ 根的路径（无后缀）"""
     up = "../" * depth
     codes = []
+    markup = []
+    def stash_markup(value):
+        markup.append(value)
+        return f"\x00MARKUP{len(markup)-1}\x00"
+
     def stash_code(m):
         codes.append(m.group(1)); return f"\x00CODE{len(codes)-1}\x00"
     text = re.sub(r"`([^`]+)`", stash_code, text)
@@ -120,7 +125,7 @@ def convert_inline(text, depth, current_rel=""):
 
     # ---- Markdown 链接 [text](path.md) → .html 内链 ----
     def md_link(m):
-        disp = m.group(1)
+        disp = html.unescape(m.group(1))
         href_raw = m.group(2).strip()
         if href_raw.startswith("http"):
             return f'<a href="{esc(href_raw)}">{esc(disp)}</a>'
@@ -131,7 +136,7 @@ def convert_inline(text, depth, current_rel=""):
             return (f'<span class="missing" title="本站未收录该页面">'
                     f'{esc(disp)}<span class="missing-note">（本站未收录）</span></span>')
         return f'<a href="{up}pages/{urlq(t)}.html">{esc(disp)}</a>'
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", md_link, text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda m: stash_markup(md_link(m)), text)
 
     # ---- 双链 [[a|b]] ----
     def wikilink(m):
@@ -139,7 +144,7 @@ def convert_inline(text, depth, current_rel=""):
         raw = raw.replace("\\|", "|")
         parts = raw.split("|", 1)
         target = parts[0].strip()
-        disp = parts[1].strip() if len(parts) > 1 else target
+        disp = html.unescape(parts[1].strip() if len(parts) > 1 else target)
         if not target:
             return f"<span>{esc(disp)}</span>"
         target = resolve(target)
@@ -147,9 +152,16 @@ def convert_inline(text, depth, current_rel=""):
             return (f'<span class="missing" title="本站未收录该页面">'
                     f'{esc(disp)}<span class="missing-note">（本站未收录）</span></span>')
         return f'<a href="{up}pages/{urlq(target)}.html">{esc(disp)}</a>'
-    text = re.sub(r"\[\[[^\]]+\]\]", wikilink, text)
+    text = re.sub(r"\[\[[^\]]+\]\]", lambda m: stash_markup(wikilink(m)), text)
 
+    # Preserve simple line breaks and existing game-text formatting.
+    text = re.sub(r"<br\s*/?>", lambda m: stash_markup("<br>"), text, flags=re.I)
+    text = re.sub(r"</?unbreak\s*>", "", text, flags=re.I)
+    # Decode character references before escaping so they render as text once.
+    text = esc(html.unescape(text))
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    for i, value in enumerate(markup):
+        text = text.replace(f"\x00MARKUP{i}\x00", value)
     for i, c in enumerate(codes):
         text = text.replace(f"\x00CODE{i}\x00", f"<code>{esc(c)}</code>")
     return text
@@ -227,6 +239,42 @@ def parse_meta(md):
         else:
             body.append(line)
     return meta, "\n".join(body)
+
+
+def search_summary(body, limit=240):
+    """截取正文开头的可读文本；不将元信息或代码块当作正文。"""
+    pieces = []
+    in_code = False
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or not line or line.startswith(("#", ">", "|", "---")):
+            continue
+        line = re.sub(r"!?\[\[([^\]]+)\]\]", lambda m: m.group(1).split("|")[-1], line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"</?unbreak\s*>", "", line, flags=re.I)
+        line = html.unescape(line)
+        line = re.sub(r"^\s*(?:[-*]\s+|\d+\.\s+)", "", line)
+        line = re.sub(r"[*_`]", "", line).strip()
+        if line:
+            pieces.append(line)
+        if sum(map(len, pieces)) >= limit:
+            break
+    return " ".join(pieces)[:limit]
+
+
+def page_toc(rendered):
+    """Use the renderer's actual heading IDs so duplicate and special headings work."""
+    headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', rendered)
+    if len(headings) < 2:
+        return ""
+    links = []
+    for anchor, label in headings:
+        label = html.unescape(re.sub(r"<[^>]*>", "", label))
+        links.append(f'<li><a href="#{esc(anchor)}">{esc(label)}</a></li>')
+    return '<nav class="page-toc" aria-label="本页目录"><details><summary>本页目录</summary><ol>' + "".join(links) + '</ol></details></nav>'
 
 # 图标映射：KB 顶层目录 → (SRR icon 子目录, 文件命名, 显示尺寸)
 ICON_CONF = {
@@ -556,6 +604,8 @@ def main():
             extra_head = '<noscript><style>.cp-filters{display:none}</style></noscript>'
             extra_top += character_panel_html(char_data, up)
             extra_scripts += f'<script src="{up}assets/character-panel.js" defer></script>'
+        rendered_body = md_to_html(body, depth, rel)
+        toc_html = page_toc(rendered_body)
         doc = f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)} — HSR Wiki</title>
@@ -568,8 +618,9 @@ def main():
 <h1 class="mv" style="--i:0">{esc(title)}</h1>
 {icon_html}
 {extra_top}
+{toc_html}
 <div class="prose mv" style="--i:2">
-{md_to_html(body, depth, rel)}
+{rendered_body}
 </div>
 {meta_html}
 <nav class="pager">{prev_nxt}</nav>
@@ -582,7 +633,7 @@ def main():
         outp = (PAGES / key.replace("/", os.sep)).with_suffix(".html")
         outp.parent.mkdir(parents=True, exist_ok=True)
         outp.write_text(doc, encoding="utf-8")
-        titles.append({"path": key+".html", "title": title, "category": parts[0] if len(parts)>1 else "", "lang":"zh_cn"})
+        titles.append({"path": key+".html", "title": title, "category": parts[0] if len(parts)>1 else "", "lang":"zh_cn", "summary": search_summary(body)})
         # ---- 首页仪表盘统计（W-4.6-87）：数据版本分布 + 最新收录 ----
         m_c = re.search(r"^>\s*创建时间[：:]\s*(.+?)\s*$", md, re.M)
         m_u = re.search(r"^>\s*更新时间[：:]\s*(.+?)\s*$", md, re.M)

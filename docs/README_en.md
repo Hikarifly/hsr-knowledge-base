@@ -2,6 +2,8 @@
 
 > **Languages:** [简体中文 (zh-Hans)](../README.md) · [繁體中文 (zh-Hant)](README_zh-Hant.md) · [English (en)](README_en.md) · [日本語 (ja)](README_ja.md) · [한국어 (ko)](README_ko.md)
 
+> **Mirror status:** Some pages contain unofficial localization; check each page's source notes. Where evidence is missing, the source and synchronization status are unknown. The online Wiki currently covers Simplified Chinese only. See the [provenance inventory](mirror-provenance.md) (Chinese).
+
 An **Obsidian**-based data knowledge base for *Honkai: Star Rail*, systematically organizing game data and materials such as characters, Light Cones, items, Relics, the Simulated Universe, quest texts, and world-building. Pages are linked via wikilinks, supporting structured search and quick navigation. In addition to Simplified Chinese, multilingual mirrors are provided in English / Traditional Chinese / Japanese / Korean.
 
 > Data version baseline: 4.7 (4.7 content added: 2026-11-11, measured 2026-11-14; includes the new character Star God★Aha (entity ID 1511), 2 new Light Cones, 2 new Planar Ornaments, 6 version events + 1 season (入画奇航), and 3 new enemies. Previous baseline 4.6: content added 2026-09-28 — the new character Pearl, the new Light Cone "Colors for Tomorrow", and two new Relics 戏梦点星的伶人 / 贪噬禁果的异端 (official English names pending); documentation aligned 2026-09-30)
