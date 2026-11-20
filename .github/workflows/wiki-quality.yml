@@ -58,3 +58,29 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
+      - name: Download preview input for round-trip verification
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v8
+        with:
+          name: wiki-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/preview-roundtrip
+      - name: Verify downloaded preview input
+        if: github.event_name == 'pull_request'
+        run: |
+          cmp "$RUNNER_TEMP/wiki-preview.zip" "$RUNNER_TEMP/preview-roundtrip/wiki-preview.zip"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from tools.preview_artifact import extract_preview_zip
+          root = Path(os.environ['RUNNER_TEMP'])
+          site = root / 'verified-preview'
+          extract_preview_zip(root / 'preview-roundtrip' / 'wiki-preview.zip', site)
+          required = ['index.html', 'assets/app.js', 'data/titles.js']
+          if not all((site / path).is_file() for path in required):
+              raise SystemExit('Preview is missing required files')
+          pages = sum(1 for _ in (site / 'pages').rglob('*.html'))
+          icons = sum(1 for _ in (site / 'assets/icons').rglob('*.png'))
+          if not pages or not icons:
+              raise SystemExit('Preview is missing pages or icons')
+          print(f'PASS: preview archive round-trip: {pages} pages, {icons} icons')
+          PY
