@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from tools.preview_review import REPO_PATTERN, snapshot
 from tools.preview_catalog import metadata, validated_manifest
+from tools.preview_release_state import active_site
 
 PATH = re.compile(r'^/previews/([1-9][0-9]{0,7})/review\.json$')
 OBJECT = re.compile(r'^/previews/([1-9][0-9]{0,7})/objects/([0-9a-f]{64})\.json$')
@@ -30,21 +31,32 @@ class ReviewServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, repo, reader=snapshot, site=None, validator=metadata):
+    def __init__(self, address, repo, reader=snapshot, site=None, validator=metadata, site_root=None):
         if not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo):
             raise ValueError('Invalid repository')
         self.repo, self.reader = repo, reader
         self.validator = validator
+        if site is not None and site_root is not None:
+            raise ValueError('Choose one preview site mode')
         self.site = Path(site) if site is not None else None
+        self.site_root = Path(site_root) if site_root is not None else None
+        if self.site_root is not None:
+            if self.site_root.is_symlink() or not self.site_root.is_dir():
+                raise ValueError('Invalid release root')
+            self.site_root = self.site_root.resolve(strict=True)
         if self.site is not None:
             if self.site.is_symlink() or not self.site.is_dir():
                 raise ValueError('Invalid preview site')
             self.site = self.site.resolve(strict=True)
         self.cache = OrderedDict()
+        self.cache_site = None
         self.lock = threading.Lock()
         self.slots = threading.BoundedSemaphore(16)
         self.static_slots = threading.BoundedSemaphore(4)
         super().__init__(address, ReviewHandler)
+
+    def active_site(self):
+        return active_site(self.site_root) if self.site_root is not None else self.site
 
     def process_request(self, request, client_address):
         if not self.slots.acquire(blocking=False):
@@ -67,6 +79,10 @@ class ReviewServer(ThreadingHTTPServer):
         if not self.lock.acquire(blocking=False):
             raise RuntimeError('Review lookup busy')
         try:
+            site = self.active_site()
+            if site != self.cache_site:
+                self.cache.clear()
+                self.cache_site = site
             cached = self.cache.get(number)
             now = time.time()
             if cached and 0 <= now - cached['captured_at'] < CACHE_SECONDS:
@@ -84,10 +100,10 @@ class ReviewServer(ThreadingHTTPServer):
                 raise ValueError('Invalid review snapshot')
             value = {key: result[key] for key in ('pr', 'head', 'approved', 'reviews', 'captured_at')}
             value['repo'] = self.repo
-            if self.site is not None:
-                bundle = self.site / 'previews' / str(number)
+            if site is not None:
+                bundle = site / 'previews' / str(number)
                 if (bundle.is_symlink() or not bundle.is_dir()
-                        or (self.site / 'previews').is_symlink()):
+                        or (site / 'previews').is_symlink()):
                     raise ValueError('Preview is not available')
                 manifest = validated_manifest(bundle, self.repo, number)
                 valid = bool(self.validator(self.repo, number, manifest))
@@ -146,7 +162,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.reply(200, result)
 
     def serve_static(self, path, query):
-        site = self.server.site
+        try:
+            site = self.server.active_site()
+        except (OSError, ValueError, UnicodeError):
+            self.reply(503, {'error': 'Preview site unavailable'})
+            return
         names = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/index.html': ('index.html', 'text/html; charset=utf-8'),
                  '/shell.js': ('shell.js', 'text/javascript; charset=utf-8'),
@@ -206,11 +226,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('repo')
     parser.add_argument('--port', type=int, default=8765)
-    parser.add_argument('--site', help='immutable assembled preview site directory')
+    sites = parser.add_mutually_exclusive_group()
+    sites.add_argument('--site', help='immutable assembled preview site directory')
+    sites.add_argument('--site-root', help='managed preview releases directory')
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error('Invalid port')
-    server = ReviewServer(('127.0.0.1', args.port), args.repo, site=args.site)
+    server = ReviewServer(('127.0.0.1', args.port), args.repo, site=args.site, site_root=args.site_root)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -37,7 +37,7 @@ python wiki/build_wiki.py
 python tools/check_quality.py
 python tools/verify_site.py
 python tools/verify_docs.py
-python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_review_server tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview tools.test_trusted_quality tools.test_preview_catalog tools.test_reconcile_previews -v
+python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_review_server tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview tools.test_trusted_quality tools.test_preview_catalog tools.test_reconcile_previews tools.test_preview_release -v
 node --check wiki/assets/app.js
 node --check wiki/assets/home.js
 node --check preview_shell/shell.js
