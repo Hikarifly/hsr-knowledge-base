@@ -1,6 +1,8 @@
 /* Trusted parent: untrusted PR files are JSON objects and run only in an opaque iframe. */
 (() => {
   const REPO = 'ganmayou2333/hsr-knowledge-base';
+  // Pages snapshots can lag behind permission changes; never treat them as live.
+  const SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
   const number = new URLSearchParams(location.search).get('pr');
   const status = document.getElementById('status');
   const main = document.querySelector('main');
@@ -70,7 +72,7 @@
         return;
       }
       if (liveServiceSeen) throw new Error('Preview service unavailable');
-      const expires = proof.captured_at * 1000 + 60000;
+      const expires = proof.captured_at * 1000 + SNAPSHOT_MAX_AGE_MS;
       if (proof.repo !== REPO || proof.pr !== Number(number) || proof.head !== manifest.head ||
           proof.approved !== true || !Number.isSafeInteger(proof.captured_at) ||
           expires <= Date.now() || proof.captured_at * 1000 > Date.now() + 5000 ||
@@ -92,7 +94,7 @@
         return fail('无法验证当前提交或检查结果，预览暂不可用。');
       }
       if (expires <= Date.now() || JSON.stringify(evidence) !== JSON.stringify(proof.reviews)) throw new Error('Review changed');
-      reviewLabel.textContent = '已有有效人工批准';
+      reviewLabel.textContent = '已有人工批准（快照，可能延迟）';
       setTimeout(() => { if (check === reviewCheck) reviewLabel.textContent = '未经人工审查'; }, Math.max(0, expires - Date.now()));
     } catch {
       if (check === reviewCheck && liveServiceSeen) {

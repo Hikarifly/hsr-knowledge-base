@@ -162,7 +162,7 @@ try {
   let approved = false;
   for (let i=0;i<100;i++) {
     await wait(100);
-    if (await evaluate("document.querySelector('#review-label').textContent === '已有有效人工批准'")) { approved = true; break; }
+    if (await evaluate(`document.querySelector('#review-label').textContent === ${JSON.stringify(useService ? '已有有效人工批准' : '已有人工批准（快照，可能延迟）')}`)) { approved = true; break; }
   }
   if (!approved) throw new Error('Current authorized review was not shown');
   reviewState = 'DISMISSED';
@@ -177,7 +177,15 @@ try {
   if (!unreviewed || !await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Dismissed approval remained visible');
   if (!useService) {
     reviewState = 'APPROVED';
-    captured = Math.floor(Date.now() / 1000) - 61;
+    captured = Math.floor(Date.now() / 1000) - 300;
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    let delayed = false;
+    for (let i=0;i<100;i++) {
+      await wait(100);
+      if (await evaluate("document.querySelector('#review-label').textContent === '已有人工批准（快照，可能延迟）'")) { delayed = true; break; }
+    }
+    if (!delayed) throw new Error('Recent Pages snapshot was not shown');
+    captured = Math.floor(Date.now() / 1000) - 901;
     await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
     await wait(500);
     if (!await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Expired approval remained visible');
