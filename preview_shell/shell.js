@@ -19,7 +19,9 @@
 
   function fail(message) {
     liveExpiry++;
+    verification++;
     verified = false;
+    hasPage = false;
     generation++;
     reviewCheck++;
     reviewLabel.textContent = '未经人工审查';
@@ -168,6 +170,7 @@
         }
       })();
       objectCache.set(digest, promise);
+      promise.catch(() => { if (objectCache.get(digest) === promise) objectCache.delete(digest); });
     }
     const result = await objectCache.get(digest);
     if (kind === 'page') return new TextDecoder('utf-8', {fatal: true}).decode(result.bytes);

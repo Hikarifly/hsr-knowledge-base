@@ -25,6 +25,7 @@ parent.postMessage({type:'review:approved'}, '*');
 const manifest = {version: 1, repo:'ganmayou2333/hsr-knowledge-base', pr:37, head, base, run:1, run_attempt:1, trusted_run:2, trusted_attempt:1, files};
 let canaries = 0, stale = false, delayNextPr = false, trustedAttempt = 1;
 let newerFailedBuild = false, newerRunningTrusted = false;
+let failNextObject = process.argv.includes('--transient-object');
 let reviewState = 'APPROVED';
 const review = {id: 1, state: 'APPROVED', user: {login:'Reviewer',type:'User'}, commit_id:head, submitted_at:'2026-01-01T00:00:00Z'};
 let captured = Math.floor(Date.now() / 1000);
@@ -35,6 +36,11 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/previews/37/manifest.json') { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify(manifest)); return; }
     if (url.pathname === '/previews/37/review.json') { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify({repo:manifest.repo,pr:37,head,approved:true,captured_at:captured,reviews:[[1,'APPROVED','Reviewer','User',head,review.submitted_at]]})); return; }
     const match = /^\/previews\/37\/objects\/([0-9a-f]{64})\.json$/.exec(url.pathname);
+    if (match && failNextObject && match[1] === files['next.html']) {
+      failNextObject = false;
+      res.writeHead(503).end();
+      return;
+    }
     if (match && objects.has(match[1])) { res.setHeader('Content-Type','application/json'); res.end(objects.get(match[1])); return; }
     const names = {'/':'index.html', '/shell.js':'shell.js', '/frame.js':'frame.js', '/shell.css':'shell.css'};
     const name = names[url.pathname];
@@ -146,6 +152,15 @@ try {
     return reply.result.value;
   };
   await cdp('Page.navigate',{url:`${origin}/?pr=37`});
+  if (process.argv.includes('--transient-object')) {
+    let failed = false;
+    for (let i=0;i<100;i++) {
+      await wait(100);
+      if (await evaluate("document.querySelector('#status').textContent.includes('无法读取')")) { failed = true; break; }
+    }
+    if (!failed || !await evaluate("document.querySelector('#preview').hidden")) throw new Error('Transient page error did not hide preview');
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  }
   if (process.argv.includes('--service-initial-failure')) {
     let unavailable = false;
     for (let i=0;i<100;i++) {
