@@ -125,7 +125,7 @@ def convert_inline(text, depth, current_rel=""):
 
     # ---- Markdown 链接 [text](path.md) → .html 内链 ----
     def md_link(m):
-        disp = m.group(1)
+        disp = html.unescape(m.group(1))
         href_raw = m.group(2).strip()
         if href_raw.startswith("http"):
             return f'<a href="{esc(href_raw)}">{esc(disp)}</a>'
@@ -144,7 +144,7 @@ def convert_inline(text, depth, current_rel=""):
         raw = raw.replace("\\|", "|")
         parts = raw.split("|", 1)
         target = parts[0].strip()
-        disp = parts[1].strip() if len(parts) > 1 else target
+        disp = html.unescape(parts[1].strip() if len(parts) > 1 else target)
         if not target:
             return f"<span>{esc(disp)}</span>"
         target = resolve(target)
@@ -154,9 +154,11 @@ def convert_inline(text, depth, current_rel=""):
         return f'<a href="{up}pages/{urlq(target)}.html">{esc(disp)}</a>'
     text = re.sub(r"\[\[[^\]]+\]\]", lambda m: stash_markup(wikilink(m)), text)
 
-    # Preserve simple line breaks used by existing Markdown; escape all other raw HTML.
+    # Preserve simple line breaks and existing game-text formatting.
     text = re.sub(r"<br\s*/?>", lambda m: stash_markup("<br>"), text, flags=re.I)
-    text = esc(text)
+    text = re.sub(r"</?unbreak\s*>", "", text, flags=re.I)
+    # Decode character references before escaping so they render as text once.
+    text = esc(html.unescape(text))
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     for i, value in enumerate(markup):
         text = text.replace(f"\x00MARKUP{i}\x00", value)
@@ -252,6 +254,8 @@ def search_summary(body, limit=240):
             continue
         line = re.sub(r"!?\[\[([^\]]+)\]\]", lambda m: m.group(1).split("|")[-1], line)
         line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"</?unbreak\s*>", "", line, flags=re.I)
+        line = html.unescape(line)
         line = re.sub(r"^\s*(?:[-*]\s+|\d+\.\s+)", "", line)
         line = re.sub(r"[*_`]", "", line).strip()
         if line:

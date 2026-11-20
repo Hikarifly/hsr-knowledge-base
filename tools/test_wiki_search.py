@@ -13,6 +13,10 @@ class WikiSearchTests(unittest.TestCase):
     def test_summary_is_bounded(self):
         self.assertEqual(len(search_summary("星" * 500)), 240)
 
+    def test_summary_reads_existing_character_references(self):
+        self.assertEqual(search_summary('调整&nbsp;-&nbsp;∞<unbreak>11</unbreak> &gt;'),
+                         '调整\u00a0-\u00a0∞11 >')
+
     def test_toc_uses_rendered_heading_ids_and_escapes_labels(self):
         rendered = md_to_html("## 第一章\n正文\n## 第一章\n正文\n## **角色** & 光锥", 1)
         toc = page_toc(rendered)
@@ -63,7 +67,15 @@ class WikiSearchTests(unittest.TestCase):
         self.assertIn('strong', parser.names)
         self.assertIn('br', parser.names)
         self.assertIn('code', parser.names)
-        self.assertIn('&amp;lt;script&amp;gt;', rendered)
+        self.assertIn('&lt;script&gt;', rendered)
+
+    def test_existing_character_references_and_game_markup_render_as_text(self):
+        rendered = convert_inline('调整&nbsp;-&nbsp;我选择 &gt;&gt; ∞<unbreak>11</unbreak>便利店 `&gt;`', 0)
+        self.assertIn('调整\u00a0-\u00a0我选择 &gt;&gt; ∞11便利店', rendered)
+        self.assertIn('<code>&amp;gt;</code>', rendered)
+        self.assertNotIn('<unbreak>', rendered)
+        link = convert_inline('[A&nbsp;&lt;B&gt;](https://example.test/)', 0)
+        self.assertIn('>A\u00a0&lt;B&gt;</a>', link)
 
     def test_inline_formatting_preserves_ampersands_and_links(self):
         rendered = convert_inline('文字 & **粗体** [链接](https://example.test/?a=1&b=2) `a<b`', 0)
