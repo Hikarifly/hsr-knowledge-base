@@ -81,7 +81,7 @@ def gh_api(path, paginate=False):
     command = ["gh", "api"]
     if paginate:
         command.extend(["--paginate", "--slurp"])
-    result = subprocess.run(command + [path], check=True, capture_output=True, text=True, encoding="utf-8")
+    result = subprocess.run(command + [path], check=True, capture_output=True, text=True, encoding="utf-8", timeout=15)
     return json.loads(result.stdout)
 
 
@@ -89,23 +89,37 @@ def snapshot(repo, number):
     if not REPO_PATTERN.fullmatch(repo) or not isinstance(number, int) or number < 1:
         raise ValueError("Invalid repository or PR number")
     base = f"repos/{repo}/pulls/{number}"
-    pr = gh_api(base)
-    pages = gh_api(base + "/reviews?per_page=100", paginate=True)
+    started_at = int(time.time())
+    deadline = time.monotonic() + 25
+    def read(path, paginate=False):
+        if time.monotonic() >= deadline:
+            raise subprocess.TimeoutExpired('review snapshot', 25)
+        result = gh_api(path, paginate=paginate) if paginate else gh_api(path)
+        if time.monotonic() >= deadline:
+            raise subprocess.TimeoutExpired('review snapshot', 25)
+        return result
+    pr = read(base)
+    pages = read(base + "/reviews?per_page=100", paginate=True)
     reviews = [review for page in pages for review in page]
+    if len(reviews) > 1000:
+        raise ValueError('Too many reviews')
     permissions = {}
+    queried = set()
     for review in reviews:
         user = review.get("user") or {}
         login = user.get("login", "")
-        if review.get("state") == "APPROVED" and user.get("type") == "User" and re.fullmatch(r"[A-Za-z0-9-]+", login):
+        if (review.get("state") == "APPROVED" and user.get("type") == "User"
+                and re.fullmatch(r"[A-Za-z0-9-]+", login) and login.casefold() not in queried):
+            queried.add(login.casefold())
             try:
-                permissions[login.casefold()] = gh_api(f"repos/{repo}/collaborators/{login}/permission")["permission"]
+                permissions[login.casefold()] = read(f"repos/{repo}/collaborators/{login}/permission")["permission"]
             except (subprocess.SubprocessError, ValueError, KeyError):
                 # Unknown permissions never count as approval.
                 pass
-    current = gh_api(base)
+    current = read(base)
     same_snapshot = all(pr.get(key) == current.get(key) for key in ("state", "updated_at"))
     same_snapshot = same_snapshot and pr.get("head", {}).get("sha") == current.get("head", {}).get("sha")
-    same_snapshot = same_snapshot and pages == gh_api(base + "/reviews?per_page=100", paginate=True)
+    same_snapshot = same_snapshot and pages == read(base + "/reviews?per_page=100", paginate=True)
     try:
         evidence = review_evidence(reviews)
     except (ValueError, TypeError, AttributeError):
@@ -116,7 +130,7 @@ def snapshot(repo, number):
         "head": current.get("head", {}).get("sha"),
         "approved": same_snapshot and approved_for_head(pr, reviews, permissions),
         "reviews": evidence,
-        "captured_at": int(time.time()),
+        "captured_at": started_at,
     }
 
 

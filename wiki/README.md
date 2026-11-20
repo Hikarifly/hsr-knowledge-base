@@ -37,7 +37,7 @@ python wiki/build_wiki.py
 python tools/check_quality.py
 python tools/verify_site.py
 python tools/verify_docs.py
-python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview tools.test_trusted_quality tools.test_preview_catalog -v
+python -m unittest tools.test_wiki_search tools.test_quality_gate tools.test_preview_review tools.test_preview_review_server tools.test_preview_artifact tools.test_package_preview tools.test_preview_bundle tools.test_stage_preview tools.test_trusted_quality tools.test_preview_catalog -v
 node --check wiki/assets/app.js
 node --check wiki/assets/home.js
 node --check preview_shell/shell.js
@@ -60,6 +60,8 @@ node tools/test_wiki_browser.mjs
 `python -m tools.preview_catalog OWNER/REPO 预览输入目录 可信页面目录 输出目录` 能将多个已暂存预览组装到新的本地目录；已关闭或过期的 PR 不会出现在新目录中。输入按 PR 编号分目录，输出目录必须不存在。它只组装，不执行部署或定期清理；上线仍需要可信发布、状态刷新与清理触发机制。
 
 组装时会尝试从可信环境生成审核快照。页面只有在快照不超过 60 秒、提交一致且 GitHub 当前审核记录与快照一致时才显示人工批准；请求失败、快照过期或记录变化时显示未经人工审查。快照需要可信服务持续刷新；目前尚无此服务，因此不能认为审核状态同步已完成。审核者权限变化最多可能在快照有效期内延迟反映。
+
+`python -m tools.preview_review_server OWNER/REPO` 提供实验性的只读审核接口，默认仅监听本机。上线需要与预览同源的 HTTPS 反向代理，仅将 `/previews/<编号>/review.json` 路由到该服务，并配置限流；服务只使用可查询审核者权限的只读 GitHub 凭据，不得持有发布凭据。此服务尚未部署，GitHub Pages 本身不能运行它。
 
 ---
 
