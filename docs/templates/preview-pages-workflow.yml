@@ -34,6 +34,7 @@ jobs:
         run: |
           test -n "$GH_TOKEN"
           python -m tools.reconcile_previews "$PREVIEW_SOURCE" preview_shell "$RUNNER_TEMP/preview-site"
+          python -m tools.verify_preview_publication "$PREVIEW_SOURCE" "$RUNNER_TEMP/preview-site"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ runner.temp }}/preview-site
