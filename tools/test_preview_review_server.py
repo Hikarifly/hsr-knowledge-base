@@ -1,11 +1,13 @@
 """Exercise the review service over HTTP without GitHub credentials."""
 import json
 import subprocess
+import tempfile
 import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from tools.preview_review_server import ReviewServer
 
@@ -73,6 +75,41 @@ class ReviewServerTests(unittest.TestCase):
             self.assertEqual(self.get('/previews/37/review.json')[0], 503)
         finally:
             self.server.lock.release()
+
+    def test_static_viewer_serves_only_allowed_paths_and_dynamic_review(self):
+        with tempfile.TemporaryDirectory() as directory:
+            site = Path(directory)
+            (site / 'index.html').write_text('<h1>trusted</h1>', encoding='utf-8')
+            (site / 'shell.js').write_text('trusted', encoding='utf-8')
+            bundle = site / 'previews' / '37'
+            (bundle / 'objects').mkdir(parents=True)
+            (bundle / 'manifest.json').write_text('{}', encoding='ascii')
+            (bundle / 'review.json').write_text('{"approved":false}', encoding='ascii')
+            (bundle / 'source.html').write_text('<script>bad</script>', encoding='ascii')
+            digest = 'a' * 64
+            (bundle / 'objects' / f'{digest}.json').write_text('{"data":""}', encoding='ascii')
+            self.server.site = site
+            with urllib.request.urlopen(self.base + '/?pr=37', timeout=5) as response:
+                self.assertEqual(response.read(), b'<h1>trusted</h1>')
+                self.assertEqual(response.headers['Content-Security-Policy'], "frame-src 'none'")
+            self.assertEqual(self.get('/previews/37/manifest.json')[0], 200)
+            self.assertEqual(self.get(f'/previews/37/objects/{digest}.json')[0], 200)
+            self.assertTrue(self.get('/previews/37/review.json')[1]['approved'])
+            for path in ['/previews/37/source.html', '/previews/37/objects/../review.json',
+                         '/previews/37/objects/invalid.json', '/shell.js?x=1']:
+                self.assertEqual(self.get(path)[0], 404)
+
+    def test_static_files_cannot_be_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            site = Path(directory)
+            target = site / 'target'
+            target.write_text('secret', encoding='utf-8')
+            try:
+                (site / 'shell.js').symlink_to(target)
+            except OSError as error:
+                self.skipTest(f'symlink unavailable: {error}')
+            self.server.site = site
+            self.assertEqual(self.get('/shell.js')[0], 404)
 
 
 if __name__ == '__main__': unittest.main()

@@ -44,6 +44,7 @@ node --check preview_shell/shell.js
 node --check preview_shell/frame.js
 $env:WIKI_BROWSER = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 node tools/test_preview_browser.mjs
+node tools/test_preview_browser.mjs --service
 node tools/test_preview_wiki.mjs
 node tools/test_wiki_browser.mjs
 ```
@@ -61,7 +62,7 @@ node tools/test_wiki_browser.mjs
 
 组装时会尝试从可信环境生成审核快照。页面只有在快照不超过 60 秒、提交一致且 GitHub 当前审核记录与快照一致时才显示人工批准；请求失败、快照过期或记录变化时显示未经人工审查。快照需要可信服务持续刷新；目前尚无此服务，因此不能认为审核状态同步已完成。审核者权限变化最多可能在快照有效期内延迟反映。
 
-`python -m tools.preview_review_server OWNER/REPO` 提供实验性的只读审核接口，默认仅监听本机。上线需要与预览同源的 HTTPS 反向代理，仅将 `/previews/<编号>/review.json` 路由到该服务，并配置限流；服务只使用可查询审核者权限的只读 GitHub 凭据，不得持有发布凭据。此服务尚未部署，GitHub Pages 本身不能运行它。
+`python -m tools.preview_review_server OWNER/REPO --site 已组装目录` 提供实验性的预览页面和只读审核接口，默认仅监听本机。上线需要同源 HTTPS 反向代理及限流；服务只使用可查询审核者权限的只读 GitHub 凭据，不得持有发布凭据。此服务尚未部署，GitHub Pages 本身不能运行它。
 
 ---
 

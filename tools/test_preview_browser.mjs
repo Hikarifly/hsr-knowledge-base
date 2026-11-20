@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -51,6 +51,36 @@ add('next.html', `<!doctype html><html><body><h1 id="content">Next page</h1><scr
 parent.postMessage({type:'test:next'}, '*');
 setTimeout(() => location.assign('http://127.0.0.1:${server.address().port}/canary'), 100);
 </script></body></html>`);
+const useService = process.argv.includes('--service');
+let service, serviceRoot;
+let origin = `http://127.0.0.1:${server.address().port}`;
+if (useService) {
+  serviceRoot = await mkdtemp(path.join(tmpdir(), 'hsr-preview-service-'));
+  for (const name of ['index.html','shell.js','frame.js','shell.css']) await copyFile(path.join('preview_shell',name), path.join(serviceRoot,name));
+  const dest = path.join(serviceRoot,'previews','37');
+  await mkdir(path.join(dest,'objects'),{recursive:true});
+  await writeFile(path.join(dest,'manifest.json'),JSON.stringify(manifest));
+  for (const [hash, value] of objects) await writeFile(path.join(dest,'objects',hash+'.json'),value);
+  const code = `import sys,time
+from tools.preview_review_server import ReviewServer
+head='a'*40
+def review(repo,number):
+ return {'pr':number,'head':head,'approved':True,'reviews':[[1,'APPROVED','Reviewer','User',head,'2026-01-01T00:00:00Z']],'captured_at':int(time.time())}
+s=ReviewServer(('127.0.0.1',0),'ganmayou2333/hsr-knowledge-base',reader=review,site=sys.argv[1])
+print(s.server_port,flush=True)
+s.serve_forever()`;
+  service = spawn('python',['-u','-c',code,serviceRoot],{stdio:['ignore','pipe','pipe']});
+  const port = await new Promise((resolve,reject) => {
+    let line = '', errors = '';
+    service.stdout.on('data', chunk => { line += chunk; if (line.includes('\n')) resolve(Number(line.split('\n')[0])); });
+    service.stderr.on('data', chunk => {errors += chunk;});
+    service.on('exit', code => reject(new Error(`Preview service failed (${code}): ${errors}`)));
+    service.on('error',reject);
+    setTimeout(() => reject(new Error('Preview service startup timed out')),15000).unref();
+  });
+  if (!port) throw new Error('Invalid preview service port');
+  origin = `http://127.0.0.1:${port}`;
+}
 const profile = await mkdtemp(path.join(tmpdir(), 'hsr-preview-browser-'));
 const browser = spawn(browserPath, ['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'], {stdio:'ignore'});
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -94,7 +124,7 @@ try {
     if(reply.exceptionDetails) throw new Error(JSON.stringify(reply.exceptionDetails));
     return reply.result.value;
   };
-  await cdp('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/?pr=37`});
+  await cdp('Page.navigate',{url:`${origin}/?pr=37`});
   let events = [];
   for (let i=0;i<100;i++) {
     await wait(100);
@@ -104,7 +134,8 @@ try {
   if (!events.some(e => e.type === 'test:home' && e.isolated) || !events.some(e => e.type === 'test:next')) throw new Error('Sandbox rendering or navigation failed: ' + JSON.stringify({events,outer}));
   await wait(1500);
   events = await evaluate('window.testEvents || []');
-  if (!events.some(e => e.type === 'test:csp' && e.directive === 'frame-src' && e.blocked?.endsWith('/canary'))) throw new Error('No blocked frame navigation was observed');
+  const canaryOrigin = `http://127.0.0.1:${server.address().port}`;
+  if (!events.some(e => e.type === 'test:csp' && e.directive === 'frame-src' && (e.blocked === canaryOrigin || e.blocked === canaryOrigin + '/canary'))) throw new Error('No blocked frame navigation was observed');
   if (!outer.notice.includes('非官方') || !outer.visible || canaries) throw new Error('Preview escaped its notice or made a network request');
   let approved = false;
   for (let i=0;i<100;i++) {
@@ -121,11 +152,13 @@ try {
   }
   await wait(500);
   if (!unreviewed || !await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Dismissed approval remained visible');
-  reviewState = 'APPROVED';
-  captured = Math.floor(Date.now() / 1000) - 61;
-  await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await wait(500);
-  if (!await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Expired approval remained visible');
+  if (!useService) {
+    reviewState = 'APPROVED';
+    captured = Math.floor(Date.now() / 1000) - 61;
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait(500);
+    if (!await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Expired approval remained visible');
+  }
   delayNextPr = true;
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await wait(100);
@@ -141,6 +174,7 @@ try {
   if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('An older verification restored a stale preview');
   console.log('PASS: sandbox rendering, parent isolation, blocked network and frame navigation, notice integrity, navigation and stale preview');
 } finally {
-  socket?.close(); browser.kill(); server.close(); await wait(250);
+  socket?.close(); browser.kill(); service?.kill(); server.close(); await wait(250);
+  if (serviceRoot) await rm(serviceRoot,{recursive:true,force:true,maxRetries:5,retryDelay:200});
   await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});
 }
