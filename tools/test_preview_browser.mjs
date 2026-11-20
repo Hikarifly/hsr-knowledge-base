@@ -8,6 +8,7 @@ import path from 'node:path';
 const browserPath = process.env.WIKI_BROWSER;
 if (!browserPath) throw new Error('Set WIKI_BROWSER to a Chrome or Edge executable');
 const head = 'a'.repeat(40), base = 'b'.repeat(40);
+const external = process.argv.includes('--external');
 const objects = new Map(), files = {};
 function add(name, data) {
   const bytes = Buffer.from(data);
@@ -131,10 +132,10 @@ try {
       const data = url.includes('/reviews?') ? [{...review,state:reviewState}]
         : isRunList ? {workflow_runs:[oldRun,...newer]}
         : m.params.request.url.includes('/actions/workflows/') ? {id:42,state:'active',path:'.github/workflows/wiki-trusted-data.yml'}
-        : m.params.request.url.endsWith('/actions/runs/2') ? {id:2,workflow_id:42,repository:{id:1},run_attempt:trustedAttempt,event:'pull_request_target',status:'completed',conclusion:'success',head_sha:head,path:'.github/workflows/wiki-trusted-data.yml',pull_requests:[{number:37,head:{sha:head,repo:{id:1}},base:{sha:base,repo:{id:1}}}]}
+        : m.params.request.url.endsWith('/actions/runs/2') ? {id:2,workflow_id:42,repository:{id:1},run_attempt:trustedAttempt,event:'pull_request_target',status:'completed',conclusion:'success',head_sha:head,path:'.github/workflows/wiki-trusted-data.yml',pull_requests:[{number:37,head:{sha:head,repo:{id:external ? 2 : 1}},base:{sha:base,repo:{id:1}}}]}
         : m.params.request.url.includes('/actions/runs/')
         ? {id:1,run_attempt:1,event:'pull_request', conclusion:'success',head_sha:head,path:'.github/workflows/wiki-quality.yml',pull_requests:[{number:37,head:{sha:head},base:{sha:base}}]}
-        : {state:'open',head:{sha:stale ? 'c'.repeat(40) : head,repo:{id:1}},base:{sha:base,repo:{id:1}}};
+        : {state:'open',head:{sha:stale ? 'c'.repeat(40) : head,repo:{id:external ? 2 : 1}},base:{sha:base,repo:{id:1}}};
       const delay = !m.params.request.url.includes('/actions/runs/') && delayNextPr ? 800 : 0;
       if (delay) delayNextPr = false;
       setTimeout(() => send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'},{name:'Access-Control-Allow-Origin',value:'*'}],body:Buffer.from(JSON.stringify(data)).toString('base64')},m.sessionId).catch(() => {}), delay);
@@ -200,7 +201,26 @@ try {
   }
   await wait(500);
   if (!unreviewed || !await evaluate("document.querySelector('#review-label').textContent === '未经人工审查'")) throw new Error('Dismissed approval remained visible');
-  if (!useService) {
+  if (external) {
+    if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('External preview stayed visible after approval was dismissed');
+    reviewState = 'APPROVED';
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    let restored = false;
+    for (let i=0;i<100;i++) {
+      await wait(100);
+      if (await evaluate("!document.querySelector('#preview').hidden")) { restored = true; break; }
+    }
+    if (!restored) throw new Error('External preview did not recover after approval');
+    captured = Math.floor(Date.now() / 1000) - 901;
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait(500);
+    if (!await evaluate("document.querySelector('#preview').hidden")) throw new Error('External preview remained visible with an expired approval snapshot');
+    captured = Math.floor(Date.now() / 1000);
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait(500);
+    if (await evaluate("document.querySelector('#preview').hidden")) throw new Error('External preview did not recover with a fresh approval snapshot');
+  }
+  if (!useService && !external) {
     reviewState = 'APPROVED';
     captured = Math.floor(Date.now() / 1000) - 300;
     await evaluate("document.dispatchEvent(new Event('visibilitychange'))");

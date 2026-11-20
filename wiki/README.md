@@ -44,6 +44,7 @@ node --check preview_shell/shell.js
 node --check preview_shell/frame.js
 $env:WIKI_BROWSER = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 node tools/test_preview_browser.mjs
+node tools/test_preview_browser.mjs --external
 node tools/test_preview_browser.mjs --transient-object
 node tools/test_preview_browser.mjs --service
 node tools/test_preview_browser.mjs --service --service-initial-failure

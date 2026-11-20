@@ -11,6 +11,8 @@
   const link = document.getElementById('pr-link');
   let frame = document.getElementById('preview');
   let manifest, bridge, verified = false, hasPage = false, currentPage = 'index.html';
+  let externalApprovalRequired = false;
+  let externalApprovalExpires = 0;
   let requests = 0, activeReads = 0, bytesRead = 0, generation = 0, verification = 0, reviewCheck = 0;
   let liveServiceSeen = document.querySelector('meta[name="preview-service"][content="enabled"]') !== null, liveExpiry = 0;
   const waiters = [];
@@ -18,6 +20,7 @@
   const mime = {js: 'text/javascript', css: 'text/css', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp'};
 
   function fail(message) {
+    externalApprovalExpires = 0;
     liveExpiry++;
     verification++;
     verified = false;
@@ -56,10 +59,10 @@
     }, Math.max(0, remaining));
   }
 
-  async function refreshReview() {
+  async function refreshReview(allowPending = false) {
+    if (!verified && !allowPending) return;
     const check = ++reviewCheck;
     reviewLabel.textContent = '未经人工审查';
-    if (!verified) return;
     try {
       const proof = await json(`previews/${number}/review.json`);
       if (proof.source === 'service-v1') {
@@ -90,16 +93,22 @@
       const evidence = reviews.map(item => [item.id, item.state, item.user?.login ?? null,
         item.user?.type ?? null, item.commit_id ?? null, item.submitted_at ?? null]).sort((a, b) => a[0] - b[0]);
       const pr = await json(`https://api.github.com/repos/${REPO}/pulls/${number}`);
-      if (check !== reviewCheck || !verified) return;
+      if (check !== reviewCheck || (!verified && !allowPending)) return;
       if (pr.state !== 'open' || pr.head?.sha !== manifest.head || pr.base?.sha !== manifest.base) {
         verification++;
         return fail('无法验证当前提交或检查结果，预览暂不可用。');
       }
       if (expires <= Date.now() || JSON.stringify(evidence) !== JSON.stringify(proof.reviews)) throw new Error('Review changed');
       reviewLabel.textContent = '已有人工批准（快照，可能延迟）';
-      setTimeout(() => { if (check === reviewCheck) reviewLabel.textContent = '未经人工审查'; }, Math.max(0, expires - Date.now()));
+      if (externalApprovalRequired) externalApprovalExpires = expires;
+      setTimeout(() => {
+        if (externalApprovalRequired && externalApprovalExpires === expires) {
+          fail('外部 PR 的批准无法验证，预览暂不可用。');
+        } else if (!externalApprovalRequired && check === reviewCheck) reviewLabel.textContent = '未经人工审查';
+      }, Math.max(0, expires - Date.now()));
+      return true;
     } catch {
-      if (check === reviewCheck && liveServiceSeen) {
+      if (check === reviewCheck && (liveServiceSeen || externalApprovalRequired)) {
         verification++;
         fail('无法验证当前提交或检查结果，预览暂不可用。');
       } else if (check === reviewCheck) reviewLabel.textContent = '未经人工审查';
@@ -222,7 +231,8 @@
           latestTrusted?.status !== 'completed' || latestTrusted?.conclusion !== 'success' ||
           workflow.state !== 'active' || workflow.path !== '.github/workflows/wiki-trusted-data.yml' ||
           !Number.isSafeInteger(workflow.id) || workflow.id < 1 ||
-          !Number.isSafeInteger(pr.head?.repo?.id) || !Number.isSafeInteger(pr.base?.repo?.id) ||
+          !Number.isSafeInteger(pr.head?.repo?.id) || pr.head.repo.id < 1 ||
+          !Number.isSafeInteger(pr.base?.repo?.id) || pr.base.repo.id < 1 ||
           trustedRun.id !== manifest.trusted_run || trustedRun.workflow_id !== workflow.id ||
           trustedRun.repository?.id !== pr.base.repo.id || trustedRun.run_attempt !== manifest.trusted_attempt ||
           trustedRun.event !== 'pull_request_target' || trustedRun.status !== 'completed' ||
@@ -230,10 +240,13 @@
           trustedRun.head_sha !== manifest.head || !trustedAssociated) {
         throw new Error('Preview is stale');
       }
+      externalApprovalRequired = pr.head.repo.id !== pr.base.repo.id;
+      if (externalApprovalRequired && !await refreshReview(true)) throw new Error('External approval unavailable');
+      if (attempt !== verification) return false;
       verified = true;
       status.textContent = '当前提交的自动检查已通过；预览内容由 PR 提供。';
       frame.hidden = false;
-      refreshReview();
+      if (!externalApprovalRequired) refreshReview();
       return true;
     } catch {
       if (attempt !== verification) return false;
