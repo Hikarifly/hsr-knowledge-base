@@ -128,6 +128,16 @@ try {
   if (!await evaluate(`document.querySelector('#search').getAttribute('aria-activedescendant') === document.querySelector('#results li:first-child').id`)) {
     throw new Error('ArrowDown did not wrap from the last result to the first');
   }
+  // Start a Chromium composition and deliver a trusted key through CDP.
+  await evaluate(`window.imeProbe = null; document.querySelector('#search').addEventListener('keydown',
+    e => { window.imeProbe = { key: e.key, composing: e.isComposing, trusted: e.isTrusted, prevented: e.defaultPrevented }; }, { once: true });`);
+  await cdp('Input.imeSetComposition', { text: '测试', selectionStart: 2, selectionEnd: 2 });
+  await pressKey('ArrowDown', 'ArrowDown', 40);
+  const nativeIme = await evaluate('window.imeProbe');
+  if (nativeIme?.key !== 'ArrowDown' || nativeIme.composing !== true || nativeIme.trusted !== true || nativeIme.prevented !== false) {
+    throw new Error(`Browser composition key was intercepted: ${JSON.stringify(nativeIme)}`);
+  }
+  await cdp('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
   // IME candidate selection owns these keys while composing; search must not cancel them.
   const imeOk = await evaluate(`(() => {
     const box = document.querySelector('#search');
